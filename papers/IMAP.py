@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Deals with sources of paper / citation info that are email
 
@@ -37,8 +38,11 @@ class Email(object):
     def getBody(self):
         return(self.body)
 
+    # need a routine here to determine if this is base64 encoded
+    # have getBodyText call it, and then unencode body before returning it.
+        
     def getBodyText(self):
-        return(self.body[0][1])
+        return(unicode(self.body[0][1]))
 
 
 class GMailSource(object):

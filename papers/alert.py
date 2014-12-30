@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Generic class to represent alerts.
 # Each alert describes a list of papers from a particular source, reported as a group.

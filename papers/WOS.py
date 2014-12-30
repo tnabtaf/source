@@ -1,15 +1,17 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Information about a Web of Science reference / Citation
 
 
 import re
+import alert
 import HTMLParser
 
 WOS_SENDER = "noreply@isiknowledge.com"
 
 
-class WOSPaper(object):
+class WOSPaper(alert.PaperAlert):
     """
     Describe a particular paper being reported by Web of Science
     """
@@ -23,7 +25,8 @@ class WOSPaper(object):
         self.source = ""
         self.doiUrl = ""
         self.doi = ""
-        self.search = ""
+        self.url = ""
+        self.search = "WoS: "
         return None
 
     def getTitleLower(self):
@@ -41,21 +44,13 @@ class WOSPaper(object):
             firstAuthor = firstAuthor.lower()
         return firstAuthor
 
-    def debugPrint(self):
-        print("Title: " + self.title)
-        print("Authors: " + self.authors)
-        print("Source: " + self.source)
-        print("DOI URL: " + self.doiUrl)
-        print("DOI: " + self.doi)
-        print("-----------------")
-        return(None)
 
         
-class WOSEmail(HTMLParser.HTMLParser):
+class WOSEmail(alert.Alert, HTMLParser.HTMLParser):
     """
     All the information in a Web of Science Email.
 
-    Parse HTML email body from Web Of Science.  The body maybe reporting more than one
+    Parse HTML email body from Web Of Science. The body maybe reporting more than one
     paper.
     """
 
@@ -63,10 +58,9 @@ class WOSEmail(HTMLParser.HTMLParser):
 
     def __init__(self, email):
 
+        alert.Alert.__init__(self)
         HTMLParser.HTMLParser.__init__(self)
-
-        self.papers = []
-        self.search = ""
+        
         self.inTitle = False
         self.inTitleValue = False
         self.inAuthors = False
@@ -114,7 +108,7 @@ class WOSEmail(HTMLParser.HTMLParser):
             self.inAuthors = False
 
         elif self.inCitedArticleValue:
-            self.search = data
+            self.search += data
             self.inCitedArticle = False
             self.inCitedArticleValue = False
             # print("Set Search: " + self.search)
@@ -148,16 +142,3 @@ class WOSEmail(HTMLParser.HTMLParser):
         elif self.inCitedArticleValue and tag == "font":
             self.inCitedArticleValue = False
             self.inCitedArticle = False
-
-
-    def getPapers(self):
-        """
-        Return list of referencing papers in this alert.
-        """
-        return(self.papers)
-
-    def getSearch(self):
-        """
-        Returns text identifying what web os science search this alert is for.
-        """
-        return(self.search)

@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 #
 # Program to compare newly reported publications with a library of pubs.
 # For each new pub
@@ -18,7 +19,8 @@ import yattag
 import CiteULike                          # CiteULike Handling
 import IMAP                               # Nasty Email handling.
 import WOS                                # web of science
-
+import ScienceDirect                      # Science Direct reports
+import GoogleScholar
 
 PAPERS_MAILBOX = "Papers"
 
@@ -35,19 +37,9 @@ class Matchup(object):
 
         self.papers = papers
         self.culEntry = culEntry          # might be None
-        self.lowerTitle = paper.getTitleLower()
+        self.lowerTitle = papers[0].getTitleLower()
         return None
-        
-def sortByLowerName(a, b):
-    print "A " + a.lowerTitle
-    print "B " + b.lowerTitle
-    
-    if a.lowerTitle < b.lowerTitle:
-        return -1
-    elif a.lowerTitle > b.lowerTitle:
-        return 1
-    return 0
-    
+            
 class PaperLibrary(object):
     """
     Keeps track of all the new papers/reference, and their matchin CUL entries, if any.
@@ -57,6 +49,10 @@ class PaperLibrary(object):
         self.byDoi = {}
         self.by1stAuthorLastNameLower = {}
 
+        # Google truncates titles, but this lib expects full paper titles.
+        # Therefore we hack it.
+        self.titleLenCaches = {}
+        
         return(None)
 
     def getAllMatchupsGroupedByTitle(self):
@@ -74,8 +70,29 @@ class PaperLibrary(object):
         """
         titleLower = paper.getTitleLower()
         if titleLower not in self.byTitleLower:
-            self.byTitleLower[titleLower] = []
-        self.byTitleLower[titleLower].append(paper)
+            # Google is a special case, as they truncate titles. The paper library
+            # is not set up for that.
+            if type(paper).__name__ == "GSPaper" and paper.titleIsTruncated():
+                # see if we have already set up a cache for this length
+                truncLen = len(paper.title)
+                if truncLen not in self.titleLenCaches:
+                    print("      Creating new cache for length: " + str(truncLen))
+                    self.titleLenCaches[truncLen] = {}
+                    for lowerTitle, paperList in self.byLowerTitle.items():
+                        truncLowerTitle = lowerTitle[:min(truncLen, len(lowerTitle))]
+                        self.titleLenCaches[truncLen][truncLowerTitle] = papersList
+                if titleLower not in self.titleLenCaches[truncLen]:
+                    # Longer vesrion of paper does not exist.  Add to cache and to overall list.
+                    self.byTitleLower[titleLower] = []
+                    self.titleLenCaches[truncLen][titleLower] = self.byTitleLower[titleLower]
+            else:
+                self.byTitleLower[titleLower] = []
+                # add this to any cached entries as well
+                for length in self.titleLenCaches:
+                    self.titleLenCaches[length][titleLower] = self.byTitleLower[titleLower]
+            self.byTitleLower[titleLower].append(paper)
+        else:
+            self.byTitleLower[titleLower].append(paper)
 
         if paper.doi:
             if paper.doi not in self.byDoi:
@@ -161,6 +178,20 @@ def getDoiFromPaperList(paperList):
             return(paper.doi)
     return(None)
 
+def getUrlFromPaperList(paperList):
+    """
+    Extract a URL from paper list.  Favor DOI URLs, and then fallback to others
+    if needed.
+    List is assumed to have been pre-verified to have consistent DOIs
+    """
+    doiUrl = getDoiFromPaperList(paperList)
+    if not doiUrl:  
+        for paper in paperList:
+            if paper.url:
+                return(paper.url)
+
+    return(doiUrl)
+
 
 def createReport(matchupsByLowTitle, sectionTitle):
     
@@ -168,7 +199,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
 
     with tag("h2"):
         text(sectionTitle)
-    
+
     for matchup in matchupsByLowTitle.values():
 
         with tag("h3"):
@@ -196,31 +227,18 @@ def createReport(matchupsByLowTitle, sectionTitle):
                     text("Paper @ CiteULike")
         else:
             with tag("ul"):
-                doi = getDoiFromPaperList(matchup.papers)
-                if doi:
-                    # Got a DOI, post it to CiteULike
-                    # with tag("form", action="http://www.citeulike.org/posturl",
-                    #         method="get", target="_blank"):
-                    #    doc.stag("input", type="hidden", id="url", name="url", value=doi)
-                    #    doc.stag("input", type="hidden", name="src", value="post_page")
-                    #    doc.stag("input", type="submit", value="Submit to CiteULike")
-
+                url = getUrlFromPaperList(matchup.papers)
+                if url:
+                    # Got a url, post it to CiteULike, and link to it.
                     with tag("li"):
-                        with tag("a", href="http://www.citeulike.org/posturl?url=" + doi,
+                        with tag("a", href="http://www.citeulike.org/posturl?url=" + url,
                                 target="citeulike"):
                             text("Submit to CiteULike")
-                        
+                    with tag("li"):
+                        with tag("a", href=url, target="paper"):
+                            text("See paper")
+                            
                 # Search for it at Hopkins, Google, too
-                # with tag("form",
-                #         action="https://catalyst.library.jhu.edu/multi_search",
-                #         id="search", method="get", target="_blank"):
-                #    doc.stag("input", type="hidden", id="search_field",
-                #             name="search_field", title="Targeted search options",
-                #             value="title")
-                #    doc.stag("input", type="hidden", id="q", name="q",
-                #             value=lowerTitle)
-                #    doc.stag("input", type="submit", value="Search Hopkins")
-
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
@@ -254,18 +272,37 @@ papers = PaperLibrary()
 gmail = IMAP.GMailSource(args.args.email, getpass.getpass())
 
 
+# Process ScienceDirect emails
+sdSearch = IMAP.buildSearchString(sender = ScienceDirect.SD_SENDER,
+                                  sentSince = args.args.sentsince,
+                                  sentBefore = args.args.sentbefore)
+for email in gmail.getEmails(PAPERS_MAILBOX, sdSearch):
+    sdEmail = ScienceDirect.SDEmail(email)
+    for paper in sdEmail.getPapers():
+        paper.search = sdEmail.getSearch()
+        papers.addPaper(paper)
+
 # Process Web Of Science emails
 wosSearch = IMAP.buildSearchString(sender = WOS.WOS_SENDER,
                                    sentSince = args.args.sentsince,
                                    sentBefore = args.args.sentbefore)
-
 for email in gmail.getEmails(PAPERS_MAILBOX, wosSearch):
-
     wosEmail = WOS.WOSEmail(email)
-
     for paper in wosEmail.getPapers():
         paper.search = wosEmail.getSearch()
         papers.addPaper(paper)
+
+# Process Google Scholar emails last because of truncated titles
+gsSearch = IMAP.buildSearchString(sender = GoogleScholar.GS_SENDER,
+                                  sentSince = args.args.sentsince,
+                                  sentBefore = args.args.sentbefore)
+for email in gmail.getEmails(PAPERS_MAILBOX, gsSearch):
+    gsEmail = GoogleScholar.GSEmail(email)
+    for paper in gsEmail.getPapers():
+        paper.search = gsEmail.getSearch()
+        papers.addPaper(paper)
+
+
         
 # All papers from all emails read
 papers.verifyConsistentDois()      # all papers with same title, have the same (or no) DOI
@@ -284,13 +321,16 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
 
     culPaper = culLib.getByDoi(doi)
     if culPaper:                # Can Match by DOI; already have paper
+        # print("Matching on DOI")
         oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPaper)
     else:
         culPaper = culLib.getByTitleLower(lowerTitle)
         if culPaper:           # Matching by Title; already have paper
             # TODO: also check first author, pub?
+            # print("Matched by title")
             oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPaper)
         else:                      # Appears New
+            # print("New paper")
             newByLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
         
 # print("======================")
