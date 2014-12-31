@@ -194,6 +194,9 @@ def getUrlFromPaperList(paperList):
 
 
 def createReport(matchupsByLowTitle, sectionTitle):
+    """
+    Return an HTML report of what needs to be done.
+    """
     
     doc, tag, text = yattag.Doc().tagtext()
 
@@ -252,9 +255,13 @@ def createReport(matchupsByLowTitle, sectionTitle):
                              target="googletitlesearch"):
                         text("Search Google")
                         
-    print(yattag.indent(doc.getvalue()))
+    reportHtml = yattag.indent(doc.getvalue())
 
-    return(None)
+    # do some cleanup
+    # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
+    reportHtml = reportHtml.replace("&amp;", "&")   # potentially risky outside of URLs
+    
+    return(reportHtml)
 
 
 # MAIN
@@ -335,6 +342,6 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
         
 # print("======================")
 
-createReport(newByLowerTitle, "New Papers")
-createReport(oldByLowerTitle, "Existing Papers")
+print(createReport(newByLowerTitle, "New Papers"))
+print(createReport(oldByLowerTitle, "Existing Papers"))
 

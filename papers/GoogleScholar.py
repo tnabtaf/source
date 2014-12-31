@@ -8,6 +8,7 @@ import re
 import alert
 import quopri                             # Quoted printable encoding
 import HTMLParser
+import urllib
 
 GS_SENDER = "scholaralerts-noreply@google.com"
 
@@ -100,29 +101,27 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
             self.search += " " + data
 
         elif self.inTitleText and data:
-            self.currentPaper.title = data
+            self.currentPaper.title += data
+            """
             if self.currentPaper.title[- ELLIPSIS_TAIL_LEN:] == ELLIPSIS_TAIL:
                 # clip it, title will be only a partial match.
                 self.currentPaper.title = self.currentPaper.title[0:- ELLIPSIS_TAIL_LEN]
                 self.currentPaper.titleTruncated = True
                 print("Clipped: " + self.currentPaper.title)
-
+            """
             # Fix title, stripping thing yattag can't cope with.
             self.currentPaper.title = self.currentPaper.title.decode("utf-8").replace(u'\u2022', "*")
             self.currentPaper.title = self.currentPaper.title.replace(u'\u2013', "-")
             self.currentPaper.title = self.currentPaper.title.replace(u'\u00F6', "o")
             self.currentPaper.title = self.currentPaper.title.replace(u'\u00E4', "a")
             self.currentPaper.title = self.currentPaper.title.replace(u'\u2010', "-")
-            self.inTitleText = False
-            self.inAuthorList = True
 
         elif self.inAuthorList and data:
             # Author list may also have source at end
             parts = data.split(" - ")
-            self.currentPaper.author = parts[0]
+            self.currentPaper.authors += parts[0]
             if len(parts) == 2:
                 self.currentPaper.source = parts[1]
-            self.inAuthorList = False
 
         return(None)
             
@@ -137,11 +136,18 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
             
         elif tag == "a" and self.inTitleLink:
             fullUrl = attrs[0][1]
-            urlArgs = fullUrl.split("&")
+            urlArgs = fullUrl[fullUrl.find("?")+1:].split("&")
         
             for urlArg in urlArgs:
+                #print("URL_ARG: " + urlArg)
                 if urlArg[0:2] == "q=":
-                    self.currentPaper.url = urlArg[2:]
+                    # need to get rid of URL encoding.
+                    self.currentPaper.url = urllib.unquote(urlArg[2:])
+                    #print("Q URL Uncoded: " + urllib.unquote(urlArg[2:]))
+                    break
+                elif urlArg[0:4] == "url=":
+                    self.currentPaper.url = urllib.unquote(urlArg[4:])
+                    #print("URL URL Uncoded: " + urllib.unquote(urlArg[4:]))
                     break
             self.inTitleLink = False
             self.inTitleText = True
@@ -152,6 +158,12 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
         if tag == "b" and self.inSearch:
             self.inSearch = False
+        elif tag =="a" and self.inTitleText:
+            self.inTitleText = False
+        elif tag == "h3":
+            self.inAuthorList = True
+        elif tag == "div" and self.inAuthorList:
+            self.inAuthorList = False
             
         return (None)
     
