@@ -21,6 +21,7 @@ import IMAP                               # Nasty Email handling.
 import WOS                                # web of science
 import ScienceDirect                      # Science Direct reports
 import GoogleScholar
+import MyNCBI
 
 PAPERS_MAILBOX = "Papers"
 
@@ -313,6 +314,16 @@ for email in gmail.getEmails(PAPERS_MAILBOX, wosSearch):
         paper.search = wosEmail.getSearch()
         papers.addPaper(paper)
 
+# Process My NCBI emails
+myNCBISearch = IMAP.buildSearchString(sender = MyNCBI.MYNCBI_SENDER,
+                                    sentSince = args.args.sentsince,
+                                    sentBefore = args.args.sentbefore)
+for email in gmail.getEmails(PAPERS_MAILBOX, myNCBISearch):
+    myNCBIEmail = MyNCBI.MyNCBIEmail(email)
+    for paper in myNCBIEmail.getPapers():
+        paper.search = myNCBIEmail.getSearch()
+        papers.addPaper(paper)
+
 # Process Google Scholar emails last because of truncated titles
 gsSearch = IMAP.buildSearchString(sender = GoogleScholar.GS_SENDER,
                                   sentSince = args.args.sentsince,
@@ -353,7 +364,7 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
         else:                      # Appears New
             # print("New paper")
             newByLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
-            newByLowerTitle[lowerTitle].debugPrint("New")
+            # newByLowerTitle[lowerTitle].debugPrint("New")
             
 # print("======================")
 

@@ -115,8 +115,8 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
         elif self.inAuthorList and data:
             # Author list may also have source at end
-            parts = data.split(" - ")
-            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(parts[0])
+            parts = data.split("- ")
+            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(parts[0].strip())
             if len(parts) == 2:
                 self.currentPaper.source = parts[1]
 

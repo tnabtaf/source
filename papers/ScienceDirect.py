@@ -74,6 +74,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         self.inSearch = False
         self.inTitleLink = False
         self.inTitleText = False
+        self.inTitleTextSpanDepth = 0
         self.afterTitleBeforeSource = False
         self.inSource = False
         self.afterSourceBeforeAuthors = False
@@ -97,9 +98,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
             self.search += data
             self.inSearch = False
         elif self.inTitleText:
-            self.currentPaper.title = DamnUnicode.cauterizeWithDecode(data)
-            self.inTitleText = False
-            self.afterTitleBeforeSource = True
+            self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data) + " "
         elif self.inSource:
             self.currentPaper.source = data
             self.inSource = False
@@ -137,6 +136,9 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         
         elif tag == "span" and attrs[0][0] == "class" and attrs[0][1] == "artTitle":
             self.inTitleText = True
+            self.inTitleTextSpanDepth = 1
+        elif self.inTitleText and tag == "span":
+            self.inTitleTextSpanDepth += 1
         elif tag == "i" and self.afterTitleBeforeSource:
             self.inSource = True
             self.afterTitleBeforeSource = False
@@ -150,6 +152,12 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
 
     def handle_endtag(self, tag):
 
+        if self.inTitleText and tag == "span":
+            self.inTitleTextSpanDepth -= 1
+            if self.inTitleTextSpanDepth == 0:
+                self.inTitleText = False
+                self.afterTitleBeforeSource = True
+                self.currentPaper.title = self.currentPaper.title.strip()
         return (None)
     
     def handle_startendtag(self, tag, attrs):
