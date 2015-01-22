@@ -8,6 +8,7 @@ import re
 import alert
 import base64
 import HTMLParser
+import DamnUnicode
 
 SD_SENDER = "salert@prod.sciencedirect.com"
 
@@ -96,7 +97,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
             self.search += data
             self.inSearch = False
         elif self.inTitleText:
-            self.currentPaper.title = data
+            self.currentPaper.title = DamnUnicode.cauterizeWithDecode(data)
             self.inTitleText = False
             self.afterTitleBeforeSource = True
         elif self.inSource:
@@ -104,7 +105,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
             self.inSource = False
             self.afterSourceBeforeAuthors = True
         elif self.inAuthors:
-            self.currentPaper.authors = data
+            self.currentPaper.authors = DamnUnicode.cauterizeWithDecode(data)
             self.inAuthors = False
         return(None)
             

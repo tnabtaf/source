@@ -9,6 +9,7 @@ import alert
 import quopri                             # Quoted printable encoding
 import HTMLParser
 import urllib
+import DamnUnicode
 
 GS_SENDER = "scholaralerts-noreply@google.com"
 
@@ -110,16 +111,12 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
                 print("Clipped: " + self.currentPaper.title)
             """
             # Fix title, stripping thing yattag can't cope with.
-            self.currentPaper.title = self.currentPaper.title.decode("utf-8").replace(u'\u2022', "*")
-            self.currentPaper.title = self.currentPaper.title.replace(u'\u2013', "-")
-            self.currentPaper.title = self.currentPaper.title.replace(u'\u00F6', "o")
-            self.currentPaper.title = self.currentPaper.title.replace(u'\u00E4', "a")
-            self.currentPaper.title = self.currentPaper.title.replace(u'\u2010', "-")
+            self.currentPaper.title = DamnUnicode.cauterizeWithDecode(self.currentPaper.title)
 
         elif self.inAuthorList and data:
             # Author list may also have source at end
             parts = data.split(" - ")
-            self.currentPaper.authors += parts[0]
+            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(parts[0])
             if len(parts) == 2:
                 self.currentPaper.source = parts[1]
 

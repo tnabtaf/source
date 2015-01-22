@@ -39,6 +39,20 @@ class Matchup(object):
         self.culEntry = culEntry          # might be None
         self.lowerTitle = papers[0].getTitleLower()
         return None
+
+    def debugPrint(self, descrip="", indent=""):
+        print(indent + "DEBUG: Matchup: " + descrip)
+        print(indent + "  lowerTitle: " + self.lowerTitle)
+        print(indent + "  papers: ")
+        for paper in self.papers:
+            paper.debugPrint(indent=indent + "  ")
+        if self.culEntry:
+            self.culEntry.debugPrint(indent=indent + "  ")
+        else:
+            print(indent + "  culEntry: ")
+        print(indent + "  DONE")
+        return(None)
+
             
 class PaperLibrary(object):
     """
@@ -339,7 +353,8 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
         else:                      # Appears New
             # print("New paper")
             newByLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
-        
+            newByLowerTitle[lowerTitle].debugPrint("New")
+            
 # print("======================")
 
 print(createReport(newByLowerTitle, "New Papers"))

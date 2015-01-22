@@ -4,6 +4,7 @@
 # Module to access a CiteULike library.
 
 import json
+import DamnUnicode
 
 class CiteULikeEntry(object):
     '''
@@ -42,7 +43,7 @@ class CiteULikeEntry(object):
     def getFirstAuthorLastName(self):
         authors = self.getAuthors()
         if authors:
-            return(authors[0].split()[-1])
+            return(DamnUnicode.cauterize(authors[0].split()[-1]))
         else:
             return None
 
@@ -51,6 +52,17 @@ class CiteULikeEntry(object):
         if firstAuthor:
             firstAuthor = firstAuthor.lower()
         return firstAuthor
+
+    def debugPrint(self, descr="", indent=""):
+        print(indent + "DEBUG: CiteULikeEntry: " + descrip)
+        print(indent + "  Title: " + self.getTitle())
+        print(indent + "  Authors: " + self.getAuthors())
+        print(indent + "  1st Author Last Name: " + self.getFirstAuthorLastName())
+        print(indent + "  Journal Name: " + self.getJournalName())
+        print(indent + "  CUL URL: " + self.getCulUrl())
+        print(indent + "  DOI: " + self.getDoi())
+        print(indent + "  DONE")
+        return(None)
 
 
 class CiteULikeLibrary(object):

@@ -43,13 +43,14 @@ class PaperAlert(object):
             firstAuthor = firstAuthor.lower()
         return firstAuthor
 
-    def debugPrint(self):
-        print("Title: " + self.title)
-        print("Authors: " + self.authors)
-        print("Source: " + self.source)
-        print("DOI URL: " + self.doiUrl)
-        print("DOI: " + self.doi)
-        print("-----------------")
+    def debugPrint(self, descr="", indent=""):
+        print(indent + "DEBUG: PaperAlert: " + descr)
+        print(indent + "  Title: " + self.title)
+        print(indent + "  Authors: " + self.authors)
+        print(indent + "  Source: " + self.source)
+        print(indent + "  DOI URL: " + self.doiUrl)
+        print(indent + "  DOI: " + self.doi)
+        print(indent + "  DONE")
         return(None)
 
         
