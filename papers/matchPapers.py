@@ -193,13 +193,22 @@ def getDoiFromPaperList(paperList):
             return(paper.doi)
     return(None)
 
+def getDoiUrlFromPaperList(paperList):
+    """
+    List is assumed to have been pre-verified to have consistent DOIs
+    """
+    for paper in paperList:
+        if paper.doiUrl:
+            return(paper.doiUrl)
+    return(None)
+
 def getUrlFromPaperList(paperList):
     """
     Extract a URL from paper list.  Favor DOI URLs, and then fallback to others
     if needed.
     List is assumed to have been pre-verified to have consistent DOIs
     """
-    doiUrl = getDoiFromPaperList(paperList)
+    doiUrl = getDoiUrlFromPaperList(paperList)
     if not doiUrl:  
         for paper in paperList:
             if paper.url:
