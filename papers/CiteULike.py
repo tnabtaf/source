@@ -17,6 +17,8 @@ class CiteULikeEntry(object):
         create a python object for it.
         """
         self.culJson = CUL_JSON
+        #print("======================================")
+        #print(CUL_JSON)
         return
 
     def getTitle(self):
@@ -32,11 +34,14 @@ class CiteULikeEntry(object):
         return(self.culJson.get("doi"))
 
     def getJournalName(self):
-        if self.getPublicationType() == "JOUR":
-            return(self.culJson["journal"])
-        else:
-            return("")
+        jrnlName = ""
+        if self.getPublicationType() == "JOUR" and "journal" in self.culJson:
+            jrnlName = self.culJson["journal"]
+        return(jrnlName)
 
+    def getPublicationType(self):
+        return(self.culJson.get("type"))
+            
     def getAuthors(self):
         return(self.culJson.get("authors"))
 
@@ -53,10 +58,31 @@ class CiteULikeEntry(object):
             firstAuthor = firstAuthor.lower()
         return firstAuthor
 
+    def getYear(self):
+        """
+        Return year as a 4 digit string.
+        """
+        published = self.culJson.get("published")
+        if published:
+            year = published[0]
+        else:
+            year = "unknown"
+        return year
+
+    def getTags(self):
+        """
+        Return the ordered list of the tags associated with this paper.
+        """
+        tags = self.culJson.get("tags")
+        if not tags:
+            tags = []
+        return tags
+
+        
     def debugPrint(self, descr="", indent=""):
-        print(indent + "DEBUG: CiteULikeEntry: " + descrip)
+        print(indent + "DEBUG: CiteULikeEntry: " + descr)
         print(indent + "  Title: " + self.getTitle())
-        print(indent + "  Authors: " + self.getAuthors())
+        print(indent + "  Authors: ", self.getAuthors())
         print(indent + "  1st Author Last Name: " + self.getFirstAuthorLastName())
         print(indent + "  Journal Name: " + self.getJournalName())
         print(indent + "  CUL URL: " + self.getCulUrl())
@@ -80,8 +106,8 @@ class CiteULikeLibrary(object):
             self.fileName = culSource
             
         except IOError as err:
-            # not a file, let's hope its a URL.
-            print("Heh, heh.  Need write codde to deal with URL's as sources.")
+            # not a file, let's hope it's a URL.
+            print("Heh, heh.  Need write code to deal with URL's as sources.")
             raise
 
         self.culJson = json.load(culFile)   # get whole file at once.
@@ -95,14 +121,19 @@ class CiteULikeLibrary(object):
             # print(culPub)
 
             titleLower = culEntry.getTitleLower()
-            self.byTitleLower[titleLower] = culEntry
+            if titleLower not in self.byTitleLower:
+                self.byTitleLower[titleLower] = []
+            else:
+                print("Title already in library", titleLower, culEntry.getDoi(),
+                      self.byTitleLower[titleLower][0].getDoi())
+            self.byTitleLower[titleLower].append(culEntry)
             doi = culEntry.getDoi()
             if doi:
                 self.byDoi[doi] = culEntry
-                authorLower = culEntry.getFirstAuthorLastNameLower()
-                if authorLower not in self.by1stAuthorLastNameLower:
-                    self.by1stAuthorLastNameLower[authorLower] = {}
-                self.by1stAuthorLastNameLower[authorLower][titleLower] = culEntry
+            authorLower = culEntry.getFirstAuthorLastNameLower()
+            if authorLower not in self.by1stAuthorLastNameLower:
+                self.by1stAuthorLastNameLower[authorLower] = {}
+            self.by1stAuthorLastNameLower[authorLower][titleLower] = culEntry
 
         culFile.close()
 
@@ -118,3 +149,11 @@ class CiteULikeLibrary(object):
     def getBy1stAuthorLastNameLower(self, lastNameLower):
         return(self.by1stAuthorLastNameLower.get(lastNameLower))
 
+    def allPapers(self):
+        """
+        A generator that returns all papers in the library, in no particular order.
+        """
+        for papers in self.byTitleLower.values():
+            for paper in papers:
+                yield paper
+        raise StopIteration()

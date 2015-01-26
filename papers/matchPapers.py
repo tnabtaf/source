@@ -31,13 +31,13 @@ SUBJECT = 1
 
 class Matchup(object):
     """
-    Pairs titles (and the list of papers with that title) and CUL entry
+    Pairs titles (and the list of papers with that title) and CUL entries with that title
     """
 
-    def __init__(self, papers, culEntry):
+    def __init__(self, papers, culEntries):
 
         self.papers = papers
-        self.culEntry = culEntry          # might be None
+        self.culEntries = culEntries          # might be None
         self.lowerTitle = papers[0].getTitleLower()
         return None
 
@@ -47,10 +47,10 @@ class Matchup(object):
         print(indent + "  papers: ")
         for paper in self.papers:
             paper.debugPrint(indent=indent + "  ")
-        if self.culEntry:
-            self.culEntry.debugPrint(indent=indent + "  ")
-        else:
-            print(indent + "  culEntry: ")
+        print(indent + "  culEntries: ")
+        if self.culEntries:
+            for culEntry in self.culEntries:
+                culEntry.debugPrint(indent=indent + "  ")
         print(indent + "  DONE")
         return(None)
 
@@ -248,10 +248,11 @@ def createReport(matchupsByLowTitle, sectionTitle):
                         with tag("li"):
                             text(paper.title)
 
-        if matchup.culEntry:
-            with tag("p"):
-                with tag("a", href=matchup.culEntry.getCulUrl()):
-                    text("Paper @ CiteULike")
+        if matchup.culEntries:
+            for culEntry in matchup.culEntries:
+                with tag("p"):
+                    with tag("a", href=culEntry.getCulUrl()):
+                        text("Paper @ CiteULike")
         else:
             with tag("ul"):
                 url = getUrlFromPaperList(matchup.papers)
@@ -363,13 +364,13 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
     culPaper = culLib.getByDoi(doi)
     if culPaper:                # Can Match by DOI; already have paper
         # print("Matching on DOI")
-        oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPaper)
+        oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, [culPaper])
     else:
-        culPaper = culLib.getByTitleLower(lowerTitle)
-        if culPaper:           # Matching by Title; already have paper
+        culPapers = culLib.getByTitleLower(lowerTitle)
+        if culPapers:           # Matching by Title; already have paper
             # TODO: also check first author, pub?
             # print("Matched by title")
-            oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPaper)
+            oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPapers)
         else:                      # Appears New
             # print("New paper")
             newByLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
