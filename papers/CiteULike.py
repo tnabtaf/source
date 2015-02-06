@@ -5,6 +5,7 @@
 
 import json
 import DamnUnicode
+import re
 
 class CiteULikeEntry(object):
     '''
@@ -36,7 +37,7 @@ class CiteULikeEntry(object):
     def getJournalName(self):
         jrnlName = ""
         if self.getPublicationType() == "JOUR" and "journal" in self.culJson:
-            jrnlName = self.culJson["journal"]
+            jrnlName = re.sub('\n\s*', ' ', self.culJson["journal"])
         return(jrnlName)
 
     def getPublicationType(self):
@@ -157,3 +158,10 @@ class CiteULikeLibrary(object):
             for paper in papers:
                 yield paper
         raise StopIteration()
+
+    def getPaperCount(self):
+        """
+        Return the total number of papers
+        """
+        return(len(self.culJson))
+

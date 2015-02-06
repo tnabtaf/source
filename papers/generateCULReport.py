@@ -7,7 +7,6 @@
 
 
 import argparse
-
 import CiteULike                          # CiteULike Handling
 
 class FastCulLib(object):
@@ -48,7 +47,7 @@ class FastCulLib(object):
                 print("Paper missing tags", paper.getTitle(), paper.getCulUrl())
 
             # Process Journal
-            jrnl = paper.getJournalName()
+            jrnl = paper.getJournalName().lower()
             if jrnl:
                 if jrnl not in byJournal:
                     byJournal[jrnl] = []
@@ -112,6 +111,9 @@ class FastCulLib(object):
                 narrowed = narrowed.intersection(restriction)
             return(narrowed)
 
+    def getPaperCount(self):
+        return(self.culLib.getPaperCount())
+
 
 def genMoinTagYearReport(fastCulLib):
     """
@@ -161,8 +163,41 @@ def genMoinTagYearReport(fastCulLib):
         report.append('||<) class="th"> ' + str(nPapersWTag[tag]) + ' ')
     report.append('||\n')
 
-    return("".join(report))
+    return(u"".join(report))
 
+
+def genTsvJournalReport(fastCulLib):
+    """
+    Generate a papers by by Journal and Year report in TSV.
+    Report is returned as a multi-line string.
+    """
+    # I don't think we need to sort it.  The output is TSV and isn't that what
+    # spreadsheets are for?
+
+    report = []
+    years = fastCulLib.getYears()
+    
+    # generate header
+    report.append('Journal\t')
+    for year in years:  # years are listed chronologically
+        report.append(year + '\t')
+    report.append('Total\n')
+
+    # spew numbers for each journal
+    for journalName in fastCulLib.getJournals():
+        report.append(journalName + '\t')
+        for year in years:
+            report.append(str(len(fastCulLib.getPapers(journal=journalName,
+                                                       year=year))) + '\t')
+        report.append(str(len(fastCulLib.getPapers(journal=journalName))) + '\n')
+
+    # gernate footer
+    report.append('TOTALS\t')
+    for year in years:  # years are listed chronologically
+        report.append(str(len(fastCulLib.getPapers(year=year))) + '\t')
+    report.append(str(fastCulLib.getPaperCount()) + '\n')
+
+    return(u"".join(report).encode('utf-8'))
 
     
 def argghhs():
@@ -185,8 +220,8 @@ def argghhs():
         "--moin", required=False, action="store_true",
         help="Produce report(s) using MoinMoin markup")
     argParser.add_argument(
-        "--csv", required=False,
-        help=("Produce report(s) in CSV format"))
+        "--tsv", required=False,
+        help=("Produce report(s) in TSV format"))
 
     return(argParser.parse_args())
 
@@ -208,7 +243,7 @@ if args.tagyear:
     # Generate them reports
 
     # options are to have one routine per report/format combo, or create a Moin
-    # report, or a csv report and then have their separate methods do the dirty
+    # report, or a tsv report and then have their separate methods do the dirty
     # work. Try that.
 
     # report showing papers by tag by year requested.
@@ -216,25 +251,17 @@ if args.tagyear:
         # generate a tag year report in MoinMoin format.
         moinReport = genMoinTagYearReport(fastCulLib)
         print(moinReport)
-    if args.csv:
+    if args.tsv:
         # generate tag year data in a tab delimited file
-        csvReport = genCsvTagYearReport(fastCulLib)
-        print(csvReport)
+        tsvReport = genTsvTagYearReport(fastCulLib)
+        print(tsvReport)
 
 if args.journalyear:
     # Count how many papers appeared in each jounal in each year.
-    # Generate CSV here?  Need to sort it somehow.  X axis should be year.
+    # Generate TSV here?  Need to sort it somehow.  X axis should be year.
     # Y axis Journal.  Put the journal with the most all time pubs at the top
     # And also include publisher as we care about BMC.
 
-    for year in fastCulLib.getYears():
-        for journal in fastCulLib.getJournals():
-            papers = fastCulLib.getPapers(journal=journal, year=year)
-            if papers:
-                print("year/Journal/nPapers ", year, journal, len(papers))
-
-    print("=====================")
-
-    for journal in fastCulLib.getJournals():
-        print("Journal total", journal, len(fastCulLib.getPapers(journal=journal)))
-                
+    journalReport = genTsvJournalReport(fastCulLib)
+    print(journalReport)
+    
