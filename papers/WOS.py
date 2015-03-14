@@ -26,6 +26,7 @@ class WOSPaper(alert.PaperAlert):
         self.doiUrl = ""
         self.doi = ""
         self.url = ""
+        self.hopkinsUrl = ""
         self.search = "WoS: "
         return None
 

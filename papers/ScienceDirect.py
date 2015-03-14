@@ -33,6 +33,7 @@ class SDPaper(alert.PaperAlert, HTMLParser.HTMLParser):
         self.doiUrl = ""
         self.doi = ""
         self.url = ""
+        self.hopkinsUrl = ""
         self.search = "ScienceDirect: "
         return None
         
@@ -77,12 +78,10 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         self.inTitleTextSpanDepth = 0
         self.afterTitleBeforeSource = False
         self.inSource = False
-        self.afterSourceBeforeAuthors = False
         self.inAuthors = False
 
         # SD email body content is base64 encoded.  Decode it.
         emailBodyText = base64.standard_b64decode(email.getBodyText())
-        # print(emailBodyText)
         self.feed(emailBodyText) # process the HTML body text.
         
         return None
@@ -102,10 +101,8 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         elif self.inSource:
             self.currentPaper.source = data
             self.inSource = False
-            self.afterSourceBeforeAuthors = True
         elif self.inAuthors:
-            self.currentPaper.authors = DamnUnicode.cauterizeWithDecode(data)
-            self.inAuthors = False
+            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(data)
         return(None)
             
     def handle_starttag(self, tag, attrs):
@@ -132,7 +129,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
                 if urlArg[0:8] == "_piikey=":
                     self.currentPaper.url = SD_PII_URL + urlArg[8:]
                     break
-            inTitleLink = False
+            self.inTitleLink = False
         
         elif tag == "span" and attrs[0][0] == "class" and attrs[0][1] == "artTitle":
             self.inTitleText = True
@@ -145,8 +142,6 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
 
         elif tag == "span" and attrs[0][0] == "class" and attrs[0][1] == "authorTxt":
             self.inAuthors = True
-            self.afterSourceBeforeAuthors = False
-
             
         return (None)
 
@@ -158,12 +153,23 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
                 self.inTitleText = False
                 self.afterTitleBeforeSource = True
                 self.currentPaper.title = self.currentPaper.title.strip()
+        elif self.inAuthors and tag == "span":
+            self.inAuthors = False
+                
         return (None)
     
     def handle_startendtag(self, tag, attrs):
         """
         Process tags like IMG and BR that don't have end tags.
         """
+        return(None)
+
+    def handle_entityref(self, name):
+        """
+        Having troubles with embedded &nbsp;'s in Author list.
+        """
+        if name == "nbsp" and self.inAuthors:
+            self.currentPaper.authors += " "
         return(None)
         
     def getPapers(self):

@@ -38,6 +38,7 @@ class GSPaper(alert.PaperAlert, HTMLParser.HTMLParser):
         self.doiUrl = ""
         self.doi = ""
         self.url = ""
+        self.hopkinsUrl = ""
         self.search = "Google "
         return None
         
@@ -102,6 +103,9 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
             self.search += " " + data
 
         elif self.inTitleText and data:
+            # sometimes we lose space between too parts of title.
+            if self.currentPaper.title and self.currentPaper.title[-1] != " ":
+                self.currentPaper.title += " "
             self.currentPaper.title += data
             """
             if self.currentPaper.title[- ELLIPSIS_TAIL_LEN:] == ELLIPSIS_TAIL:
@@ -118,7 +122,7 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
             parts = data.split("- ")
             self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(parts[0].strip())
             if len(parts) == 2:
-                self.currentPaper.source = parts[1]
+                self.currentPaper.source = DamnUnicode.cauterizeWithDecode(parts[1])
 
         return(None)
             

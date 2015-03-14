@@ -22,6 +22,7 @@ import WOS                                # web of science
 import ScienceDirect                      # Science Direct reports
 import GoogleScholar
 import MyNCBI
+import Wiley                              # Wileay Online Library Saved Search Alerts
 
 PAPERS_MAILBOX = "Papers"
 
@@ -134,8 +135,8 @@ class PaperLibrary(object):
                         doi = paper.doi
                     elif doi != paper.doi:
                         print("Papers with same title, don't have same DOIs:")
-                        print("Title: " + paper.title)
-                        print("Conflicting DOIs: " + doi + ", " + paper.doi)
+                        print("  Title: " + paper.title)
+                        print("  Conflicting DOIs: " + doi + ", " + paper.doi)
 
     def verifyConsistent1stAuthor(self):
         """
@@ -151,8 +152,8 @@ class PaperLibrary(object):
                         author1 = firstAuthorForThisPaper
                     elif author1 != firstAuthorForThisPaper:
                         print("Papers with same title, don't have same first authors:")
-                        print("Title: " + paper.title)
-                        print("Conflicting authors: '" + author1 + "', '" +
+                        print("  Title: " + paper.title)
+                        print("  Conflicting authors: '" + author1 + "', '" +
                               firstAuthorForThisPaper + "'")
 
         
@@ -216,6 +217,15 @@ def getUrlFromPaperList(paperList):
 
     return(doiUrl)
 
+def getHopkinsUrlFromPaperList(paperList):
+    """
+    Extract a Hopkins specific URL from paper list.  
+    Not all sources have this.
+    """
+    for paper in paperList:
+        if paper.hopkinsUrl:
+            return(paper.hopkinsUrl)
+    return(None)
 
 def createReport(matchupsByLowTitle, sectionTitle):
     """
@@ -224,7 +234,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
     
     doc, tag, text = yattag.Doc().tagtext()
 
-    with tag("h2"):
+    with tag("h2", style="width: 100%; background-color: #eeeeff"):
         text(sectionTitle)
 
     for matchup in matchupsByLowTitle.values():
@@ -265,12 +275,18 @@ def createReport(matchupsByLowTitle, sectionTitle):
                     with tag("li"):
                         with tag("a", href=url, target="paper"):
                             text("See paper")
+
+                hopkinsUrl = getHopkinsUrlFromPaperList(matchup.papers)
+                if hopkinsUrl:
+                    with tag("li"):
+                        with tag("a", href=hopkinsUrl, target="paper"):
+                            text("See paper @ Hopkins")
                             
                 # Search for it at Hopkins, Google, too
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.urlencode({"q": matchup.lowerTitle}),
+                             urllib.urlencode({"q": matchup.lowerTitle.encode('utf-8')}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
@@ -280,7 +296,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                              target="googletitlesearch"):
                         text("Search Google")
                         
-    reportHtml = yattag.indent(doc.getvalue())
+    reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
 
     # do some cleanup
     # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
@@ -334,6 +350,17 @@ for email in gmail.getEmails(PAPERS_MAILBOX, myNCBISearch):
         paper.search = myNCBIEmail.getSearch()
         papers.addPaper(paper)
 
+# Process Wiley Emails
+wileySearch = IMAP.buildSearchString(sender = Wiley.WILEY_SENDER,
+                                    sentSince = args.args.sentsince,
+                                    sentBefore = args.args.sentbefore)
+for email in gmail.getEmails(PAPERS_MAILBOX, wileySearch):
+    wileyEmail = Wiley.WileyEmail(email)
+    for paper in wileyEmail.getPapers():
+        paper.search = wileyEmail.getSearch()
+        papers.addPaper(paper)
+
+        
 # Process Google Scholar emails last because of truncated titles
 gsSearch = IMAP.buildSearchString(sender = GoogleScholar.GS_SENDER,
                                   sentSince = args.args.sentsince,
