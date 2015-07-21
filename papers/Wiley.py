@@ -13,6 +13,7 @@ WILEY_SENDER = "WileyOnlineLibrary@wiley.com"
 
 WILEY_JHU_URL = "http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/"
 WILEY_URL = "http://onlinelibrary.wiley.com/"
+WILEY_URL_LEN = len(WILEY_URL)
 
 class WileyPaper(alert.PaperAlert, HTMLParser.HTMLParser):
     """
@@ -125,13 +126,14 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
             
             # URL looks like
             # http://onlinelibrary.wiley.com/doi/10.1002/spe.2320/abstract?campaign=wolsavedsearch
+            # http://onlinelibrary.wiley.com/doi/10.1002/cpe.3533/abstract
             # Make it look like:
             # http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/doi/10.1002/spe.2320/abstract
             baseUrl = attrs[1][1]
             urlParts = baseUrl.split("/")
             self.currentPaper.doi = "/".join(urlParts[4:6])
             self.currentPaper.url = baseUrl
-            self.currentPaper.hopkinsUrl = WILEY_JHU_URL + "/".join(urlParts[3:6]) + '/abstract'
+            self.currentPaper.hopkinsUrl = createHopkinsUrl(baseUrl)
             self.currentPaper.doiUrl = "http://dx.doi.org/" + self.currentPaper.doi
         elif self.awaitingJournal and tag == "span":
             self.inJournal = True
@@ -178,3 +180,22 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
         Returns text identifying what web os science search this alert is for.
         """
         return(self.search)
+
+
+def isWileyUrl(url):
+    """
+    Return true if the given URL is a Wiley url.
+    """
+    return(len(url) >= WILEY_URL_LEN and url[0:WILEY_URL_LEN] == WILEY_URL)
+
+
+def createHopkinsUrl(url):
+    """
+    Given a Wiley URL, convert it to a Hopkins URL
+    """
+    # Wiley URLs look like
+    # http://onlinelibrary.wiley.com/doi/10.1002/spe.2320/abstract?something
+    # Make it look like:
+    # http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/doi/10.1002/spe.2320/abstract
+    urlParts = url.split("/")
+    return(WILEY_JHU_URL + "/".join(urlParts[3:6]) + '/abstract'

@@ -128,6 +128,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
             for urlArg in urlArgs:
                 if urlArg[0:8] == "_piikey=":
                     self.currentPaper.url = SD_PII_URL + urlArg[8:]
+                    self.currentPaper.hopkinsUrl = SD_JHU_PII_URL + urlArg[8:]
                     break
             self.inTitleLink = False
         

@@ -225,6 +225,9 @@ def getHopkinsUrlFromPaperList(paperList):
     for paper in paperList:
         if paper.hopkinsUrl:
             return(paper.hopkinsUrl)
+        elif Wiley.isWileyURL(paper.url):
+            # Some wiley comes from other searches.
+            return(Wiley.createHopkinsUrl(paper.url))
     return(None)
 
 def createReport(matchupsByLowTitle, sectionTitle):
@@ -279,7 +282,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                 hopkinsUrl = getHopkinsUrlFromPaperList(matchup.papers)
                 if hopkinsUrl:
                     with tag("li"):
-                        with tag("a", href=hopkinsUrl, target="paper"):
+                        with tag("a", href=hopkinsUrl, target="paperhopkins"):
                             text("See paper @ Hopkins")
                             
                 # Search for it at Hopkins, Google, too
