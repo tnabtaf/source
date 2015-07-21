@@ -130,6 +130,9 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
             # Make it look like:
             # http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/doi/10.1002/spe.2320/abstract
             baseUrl = attrs[1][1]
+            if baseUrl[0:4] != "http":
+                # Wiley sometimes forgets leading http://
+                baseUrl = "http://" + baseUrl
             urlParts = baseUrl.split("/")
             self.currentPaper.doi = "/".join(urlParts[4:6])
             self.currentPaper.url = baseUrl
@@ -195,7 +198,8 @@ def createHopkinsUrl(url):
     """
     # Wiley URLs look like
     # http://onlinelibrary.wiley.com/doi/10.1002/spe.2320/abstract?something
+    # http://onlinelibrary.wiley.com/doi/10.1002/prca.201400173/abstract?campaign=wolsavedsearch
     # Make it look like:
     # http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/doi/10.1002/spe.2320/abstract
-    urlParts = url.split("/")
-    return(WILEY_JHU_URL + "/".join(urlParts[3:6]) + '/abstract')
+    url_parts = url.split("/")
+    return(WILEY_JHU_URL + "/".join(url_parts[3:6]) + '/abstract')

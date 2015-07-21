@@ -20,6 +20,7 @@ import CiteULike                          # CiteULike Handling
 import IMAP                               # Nasty Email handling.
 import WOS                                # web of science
 import ScienceDirect                      # Science Direct reports
+import Springer
 import GoogleScholar
 import MyNCBI
 import Wiley                              # Wileay Online Library Saved Search Alerts
@@ -223,13 +224,19 @@ def getHopkinsUrlFromPaperList(paperList):
     Extract a Hopkins specific URL from paper list.  
     Not all sources have this.
     """
+    hopkinsUrl = None
     for paper in paperList:
         if paper.hopkinsUrl:
             return(paper.hopkinsUrl)
         elif Wiley.isWileyUrl(paper.url):
             # Some wiley comes from other searches.
             return(Wiley.createHopkinsUrl(paper.url))
-    return(None)
+        elif Springer.isSpringerUrl(paper.url):
+            return(Springer.createHopkinsUrl(paper.url))
+        elif paper.url and not hopkinsUrl:
+            urlParts = paper.url.split("/")
+            hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
+    return(hopkinsUrl)
 
 def createReport(matchupsByLowTitle, sectionTitle):
     """
@@ -286,7 +293,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                         with tag("a", href=hopkinsUrl, target="paperhopkins"):
                             text("See paper @ Hopkins")
                             
-                # Search for it at Hopkins, Google, too
+                # Search for it at Hopkins; Google and pubmed too
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
@@ -299,6 +306,12 @@ def createReport(matchupsByLowTitle, sectionTitle):
                              href="https://www.google.com/search?q=" + matchup.lowerTitle,
                              target="googletitlesearch"):
                         text("Search Google")
+                        
+                with tag("li"):
+                    with tag("a",
+                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.lowerTitle,
+                             target="pubmedtitlesearch"):
+                        text("Search Pubmed")
                         
     reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
 
