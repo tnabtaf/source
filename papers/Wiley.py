@@ -198,4 +198,4 @@ def createHopkinsUrl(url):
     # Make it look like:
     # http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/doi/10.1002/spe.2320/abstract
     urlParts = url.split("/")
-    return(WILEY_JHU_URL + "/".join(urlParts[3:6]) + '/abstract'
+    return(WILEY_JHU_URL + "/".join(urlParts[3:6]) + '/abstract')

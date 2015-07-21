@@ -14,7 +14,7 @@ import re
 import urllib
 
 import HTMLParser
-
+import DamnUnicode
 
 HEADER_PARTS = "(BODY.PEEK[HEADER.FIELDS (From Subject)])"
 BODY_PARTS = "(BODY.PEEK[TEXT])"
@@ -42,7 +42,7 @@ class Email(object):
     # have getBodyText call it, and then unencode body before returning it.
         
     def getBodyText(self):
-        return(unicode(self.body[0][1]))
+        return(unicode(DamnUnicode.cauterizeWithDecode(self.body[0][1])))
 
 
 class GMailSource(object):

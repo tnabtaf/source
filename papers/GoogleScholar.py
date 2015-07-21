@@ -106,7 +106,7 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
             # sometimes we lose space between too parts of title.
             if self.currentPaper.title and self.currentPaper.title[-1] != " ":
                 self.currentPaper.title += " "
-            self.currentPaper.title += data
+            self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data)
             """
             if self.currentPaper.title[- ELLIPSIS_TAIL_LEN:] == ELLIPSIS_TAIL:
                 # clip it, title will be only a partial match.

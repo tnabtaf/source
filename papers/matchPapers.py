@@ -58,7 +58,7 @@ class Matchup(object):
             
 class PaperLibrary(object):
     """
-    Keeps track of all the new papers/reference, and their matchin CUL entries, if any.
+    Keeps track of all the new papers/reference, and their match in CUL entries, if any.
     """
     def __init__(self):
         self.byTitleLower = {}
@@ -153,8 +153,9 @@ class PaperLibrary(object):
                     elif author1 != firstAuthorForThisPaper:
                         print("Papers with same title, don't have same first authors:")
                         print("  Title: " + paper.title)
-                        print("  Conflicting authors: '" + author1 + "', '" +
-                              firstAuthorForThisPaper + "'")
+                        print("  Conflicting authors: ")
+                        print(u"    Author A: '" + author1 + u"'")
+                        print(u"    Author B: '" + firstAuthorForThisPaper + u"'")
 
         
         
@@ -225,7 +226,7 @@ def getHopkinsUrlFromPaperList(paperList):
     for paper in paperList:
         if paper.hopkinsUrl:
             return(paper.hopkinsUrl)
-        elif Wiley.isWileyURL(paper.url):
+        elif Wiley.isWileyUrl(paper.url):
             # Some wiley comes from other searches.
             return(Wiley.createHopkinsUrl(paper.url))
     return(None)
@@ -322,6 +323,9 @@ papers = PaperLibrary()
 # connect to email source
 gmail = IMAP.GMailSource(args.args.email, getpass.getpass())
 
+
+
+# Need to rationalise this before it prliferates any more. But not today.
 
 # Process ScienceDirect emails
 sdSearch = IMAP.buildSearchString(sender = ScienceDirect.SD_SENDER,
