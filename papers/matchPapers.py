@@ -322,6 +322,104 @@ def createReport(matchupsByLowTitle, sectionTitle):
     return(reportHtml)
 
 
+def reportPaper(matchup):
+    """
+    Return HTML report for this matchup
+    """
+    
+    doc, tag, text = yattag.Doc().tagtext()
+
+    newPaper = not matchup.culEntries
+    
+    if newPaper:
+        # reported paper already in CiteULike
+        bgColor = "#eef"
+        fontColor = "#000"
+        leader = "New: <br />"
+        hLevel = "h2"
+ 
+    else:
+        # report paper is new
+        bgColor = "#ccc"
+        fontColor = "#666"
+        leader = "Known: <br />"
+        hLevel = "h3"
+        
+    with tag("div", style="width: 100%; color: " + fontColor + "; background-color: " + bgColor):
+
+        with tag(hLevel):
+            text(leader + matchup.papers[0].title)
+    
+        with tag("ol"):
+            for paper in matchup.papers:
+                with tag("li"):
+                    text(paper.search)
+                    with tag("ul"):
+                        with tag("li"):
+                            text(paper.authors)
+                        if paper.doi:
+                            with tag("li"):
+                                with tag("a", href=paper.doiUrl, target="_blank"):
+                                    text(paper.doi)
+                        with tag("li"):
+                            text(paper.source)
+                        with tag("li"):
+                            text(paper.title)
+
+        if not newPaper:
+            for culEntry in matchup.culEntries:
+                with tag("p"):
+                    with tag("a", href=culEntry.getCulUrl()):
+                        text("Paper @ CiteULike")
+        else:
+            with tag("ul"):
+                url = getUrlFromPaperList(matchup.papers)
+                if url:
+                    # Got a url, post it to CiteULike, and link to it.
+                    with tag("li"):
+                        with tag("a", href="http://www.citeulike.org/posturl?url=" + url,
+                                target="citeulike"):
+                            text("Submit to CiteULike")
+                    with tag("li"):
+                        with tag("a", href=url, target="paper"):
+                            text("See paper")
+
+                hopkinsUrl = getHopkinsUrlFromPaperList(matchup.papers)
+                if hopkinsUrl:
+                    with tag("li"):
+                        with tag("a", href=hopkinsUrl, target="paperhopkins"):
+                            text("See paper @ Hopkins")
+                            
+                # Search for it at Hopkins; Google and pubmed too
+                with tag("li"):
+                    with tag("a",
+                             href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
+                             urllib.urlencode({"q": matchup.lowerTitle.encode('utf-8')}),
+                             target="jhulib"):
+                        text("Search Hopkins")
+                    
+                with tag("li"):
+                    with tag("a",
+                             href="https://www.google.com/search?q=" + matchup.lowerTitle,
+                             target="googletitlesearch"):
+                        text("Search Google")
+                        
+                with tag("li"):
+                    with tag("a",
+                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.lowerTitle,
+                             target="pubmedtitlesearch"):
+                        text("Search Pubmed")
+                        
+    reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
+
+    # do some cleanup
+    # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
+    reportHtml = reportHtml.replace("&amp;", "&")   # potentially risky outside of URLs
+    
+    return(reportHtml)
+
+
+    
 # MAIN
 
 args = Argghhs()                          # process command line arguments
@@ -400,8 +498,8 @@ papers.verifyConsistent1stAuthor() # same, but different
 # Now compare new pubs with existing CUL lib.  Using title, because everything has a title
 # A problem to address DOIs vs DOI URLs
 
-oldByLowerTitle = {}
-newByLowerTitle = {}
+
+byLowerTitle = {}
 
 for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items():
     
@@ -411,20 +509,23 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
     culPaper = culLib.getByDoi(doi)
     if culPaper:                # Can Match by DOI; already have paper
         # print("Matching on DOI")
-        oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, [culPaper])
+        byLowerTitle[lowerTitle] = Matchup(papersWithTitle, [culPaper])
     else:
         culPapers = culLib.getByTitleLower(lowerTitle)
         if culPapers:           # Matching by Title; already have paper
             # TODO: also check first author, pub?
             # print("Matched by title")
-            oldByLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPapers)
+            byLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPapers)
         else:                      # Appears New
             # print("New paper")
-            newByLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
-            # newByLowerTitle[lowerTitle].debugPrint("New")
-            
-# print("======================")
+            byLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
 
-print(createReport(newByLowerTitle, "New Papers"))
-print(createReport(oldByLowerTitle, "Existing Papers"))
+# Get the papers in Lower Title order
 
+sortedTitles = sorted(byLowerTitle.keys())
+
+for title in sortedTitles:
+    print(reportPaper(byLowerTitle[title]))
+
+
+    
