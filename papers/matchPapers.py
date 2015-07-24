@@ -335,20 +335,23 @@ def reportPaper(matchup):
         # reported paper already in CiteULike
         bgColor = "#eef"
         fontColor = "#000"
-        leader = "New: <br />"
+        leader = "New:"
         hLevel = "h2"
  
     else:
         # report paper is new
         bgColor = "#ccc"
         fontColor = "#666"
-        leader = "Known: <br />"
+        leader = "Known:"
         hLevel = "h3"
         
     with tag("div", style="width: 100%; color: " + fontColor + "; background-color: " + bgColor):
 
         with tag(hLevel):
-            text(leader + matchup.papers[0].title)
+            text(leader)
+            with tag("br"):
+                pass
+            text(matchup.papers[0].title)
     
         with tag("ol"):
             for paper in matchup.papers:
