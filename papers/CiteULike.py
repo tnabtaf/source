@@ -26,7 +26,10 @@ class CiteULikeEntry(object):
         return(self.culJson["title"])
 
     def getTitleLower(self):
-        return(self.culJson["title"].lower())
+        """
+        Also strips out whitespace and non-alphanumeric character
+        """
+        return(re.sub(r'\W+', '',  self.culJson["title"]).lower())
 
     def getCulUrl(self):
         return(self.culJson["href"])

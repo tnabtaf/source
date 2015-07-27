@@ -31,7 +31,7 @@ class WOSPaper(alert.PaperAlert):
         return None
 
     def getTitleLower(self):
-        return(self.title.lower())
+        return(re.sub(r'\W+', '', self.title.lower()))
         
     def getFirstAuthorLastName(self):
         if self.authors:
