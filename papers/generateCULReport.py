@@ -102,7 +102,7 @@ class FastCulLib(object):
             sets.append(self.byJournal[journal])
 
         if len(sets) == 0:
-            return(culLib.allPapers())
+            return(frozenset(self.culLib.allPapers()))
         elif len(sets) == 1:
             return(sets[0])
         else:
