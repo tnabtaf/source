@@ -33,6 +33,9 @@ class PaperAlert(object):
         Also strips non-alphanumeric characters.
         """
         return(re.sub(r'\W+', '', self.title.lower()))
+
+    def getTitle(self):
+        return self.title
         
     def getFirstAuthorLastName(self):
         """

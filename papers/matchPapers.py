@@ -41,11 +41,13 @@ class Matchup(object):
         self.papers = papers
         self.culEntries = culEntries          # might be None
         self.lowerTitle = papers[0].getTitleLower()
+        self.title = papers[0].getTitle()
         return None
 
     def debugPrint(self, descrip="", indent=""):
         print(indent + "DEBUG: Matchup: " + descrip)
         print(indent + "  lowerTitle: " + self.lowerTitle)
+        print(indent + "  title: " + self.title)
         print(indent + "  papers: ")
         for paper in self.papers:
             paper.debugPrint(indent=indent + "  ")
@@ -297,19 +299,19 @@ def createReport(matchupsByLowTitle, sectionTitle):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.urlencode({"q": matchup.lowerTitle.encode('utf-8')}),
+                             urllib.urlencode({"q": matchup.title.encode('utf-8')}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
                 with tag("li"):
                     with tag("a",
-                             href="https://www.google.com/search?q=" + matchup.lowerTitle,
+                             href="https://www.google.com/search?q=" + matchup.title,
                              target="googletitlesearch"):
                         text("Search Google")
                         
                 with tag("li"):
                     with tag("a",
-                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.lowerTitle,
+                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.title,
                              target="pubmedtitlesearch"):
                         text("Search Pubmed")
                         
@@ -397,19 +399,19 @@ def reportPaper(matchup):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.urlencode({"q": matchup.lowerTitle.encode('utf-8')}),
+                             urllib.urlencode({"q": matchup.title.encode('utf-8')}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
                 with tag("li"):
                     with tag("a",
-                             href="https://www.google.com/search?q=" + matchup.lowerTitle,
+                             href="https://www.google.com/search?q=" + matchup.title,
                              target="googletitlesearch"):
                         text("Search Google")
                         
                 with tag("li"):
                     with tag("a",
-                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.lowerTitle,
+                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.title,
                              target="pubmedtitlesearch"):
                         text("Search Pubmed")
                         
