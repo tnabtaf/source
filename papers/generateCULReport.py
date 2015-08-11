@@ -7,7 +7,14 @@
 
 
 import argparse
+import titlecase
+import DamnUnicode
 import CiteULike                          # CiteULike Handling
+
+CUL_GROUP_ID = "16008"
+CUL_GROUP_SEARCH = "http://www.citeulike.org/search/group?search=Search+library&group_id=" + CUL_GROUP_ID + "&q="
+
+
 
 class FastCulLib(object):
     """
@@ -84,7 +91,23 @@ class FastCulLib(object):
         Return an unordered list of Journal names.
         """
         return(self.byJournal.keys())
+        
 
+    def getJournalTotalCount(self, journalName):
+        """
+        Return the total number of papers from this Journal.
+        """
+        return(len(self.getPapers(journal = journalName.lower())))
+
+        
+    def getJournalsByTotal(self):
+        """
+        Return a list of Journal names in descending order, sorted by total
+        number of papers in each journal 
+        """
+        return(sorted (self.byJournal.keys(), key=lambda jrnlName: -self.getJournalTotalCount(jrnlName)))
+
+        
     def getPapers(self,
                   tag = None,
                   year = None,
@@ -150,18 +173,20 @@ def genMoinTagYearReport(fastCulLib):
         for tag in tagsInCountOrder:
             papersForTagYear = fastCulLib.getPapers(tag=tag, year=year)
             if papersForTagYear:
+                style = genMoinCountStyle(len(papersForTagYear))
                 count = str(len(papersForTagYear))
             else:
+                style = ""
                 count = ""
-            report.append('||<)> ' + count + ' ')
+            report.append('||' + style + count + ' ')
         report.append('||<)> ' + str(nPapersThisYear) + ' ||\n')
 
     # generate total line at bottom
-    report.append('||<class="th"> Total ||<) class="th"> ' +
-                  str(len(fastCulLib.getPapers())) + ' ')
+    report.append('||<class="th"> Total ')
     for tag in tagsInCountOrder:
         report.append('||<) class="th"> ' + str(nPapersWTag[tag]) + ' ')
-    report.append('||\n')
+    report.append(' ||<) class="th"> ' +
+                  str(len(fastCulLib.getPapers())) + ' ||\n')
 
     return(u"".join(report))
 
@@ -199,7 +224,77 @@ def genTsvJournalReport(fastCulLib):
 
     return(u"".join(report).encode('utf-8'))
 
+
+def genMoinCountStyle(numPapers):
+    """
+    Bigger counts get more emphasis.
+    """
+    style = '<) '
+
+    if numPapers == 0:
+        style += 'style="color: #AAAAAA;"> '
+    elif numPapers == 1:
+        style += 'style="background-color: #dddddd;"> '
+    elif numPapers <= 5:
+        style += 'style="background-color: #cfe2f3;"> '
+    elif numPapers <= 10:
+        style += 'style="background-color: #9fc5e8;"> '
+    elif numPapers <= 20:
+        style += 'style="background-color: #6fa8dc;"> '
+    elif numPapers <= 50:
+        style += 'style="background-color: #3d85c6; color: #ffffff"> '
+    elif numPapers <= 100:
+        style += 'style="background-color: #2d65b6; color: #ffffff"> '
+    elif numPapers <= 500:
+        style += 'style="background-color: #1d45a6; color: #ffffff"> '
+    else:
+        style += '> '
+
+    return style
+
+        
+def genMoinJournalReport(fastCulLib):
+    """
+    Generate a papers by by Journal and Year report in MoinMoin markup.
+    Report is returned as a multi-line string.
+    """
+
+    report = []
+    years = fastCulLib.getYears()
     
+    # generate header
+    report.append('||<rowclass="th"> Journal || ')
+    for year in years:  # years are listed chronologically
+        report.append(year + ' || ')
+    report.append(' Total ||\n')
+
+    # spew numbers for each journal
+    for journalName in fastCulLib.getJournalsByTotal():
+        cauterizedJournalName = DamnUnicode.cauterize(journalName)
+        # Generate link to journal in CUL.
+        culGroupSearch = CUL_GROUP_SEARCH + 'journal:"' + cauterizedJournalName + '"'
+        report.append("|| ''[[" + culGroupSearch + "|"
+                      + titlecase.titlecase(cauterizedJournalName) +
+                      "]]'' ||")
+        for year in years:
+            numPapers = len(fastCulLib.getPapers(journal=journalName, year=year))
+            style = genMoinCountStyle(numPapers)
+            report.append(style +
+                          str(len(fastCulLib.getPapers(journal=journalName,
+                                                       year=year))) + ' ||')
+        report.append("<)> '''" +
+                      str(fastCulLib.getJournalTotalCount(journalName)) + "''' ||\n'")
+
+    # gernate footer
+    report.append('||>class="th"> TOTALS ||<)> ')
+    for year in years:  # years are listed chronologically
+        report.append(str(len(fastCulLib.getPapers(year=year))) + ' ||<)> ')
+    report.append(" ||<)> '''" + str(fastCulLib.getPaperCount()) + "''' ||\n")
+
+    return(u"".join(report).encode('utf-8'))
+
+
+
 def argghhs():
     """
     Process and provide access to command line arguments.
@@ -220,7 +315,7 @@ def argghhs():
         "--moin", required=False, action="store_true",
         help="Produce report(s) using MoinMoin markup")
     argParser.add_argument(
-        "--tsv", required=False,
+        "--tsv", required=False, action="store_true", 
         help=("Produce report(s) in TSV format"))
 
     return(argParser.parse_args())
@@ -262,6 +357,11 @@ if args.journalyear:
     # Y axis Journal.  Put the journal with the most all time pubs at the top
     # And also include publisher as we care about BMC.
 
-    journalReport = genTsvJournalReport(fastCulLib)
-    print(journalReport)
+    if args.tsv:
+        journalReport = genTsvJournalReport(fastCulLib)
+        print(journalReport)
+    
+    if args.moin:
+        journalReport = genMoinJournalReport(fastCulLib)
+        print(journalReport)
     
