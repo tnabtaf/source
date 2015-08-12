@@ -14,7 +14,7 @@ import CiteULike                          # CiteULike Handling
 CUL_GROUP_ID = "16008"
 CUL_GROUP_SEARCH = "http://www.citeulike.org/search/group?search=Search+library&group_id=" + CUL_GROUP_ID + "&q="
 
-
+CUL_GROUP_TAG_BASE_URL = "http://www.citeulike.org/group/" + CUL_GROUP_ID + "/tag/"
 
 class FastCulLib(object):
     """
@@ -191,6 +191,60 @@ def genMoinTagYearReport(fastCulLib):
     return(u"".join(report))
 
 
+def genMoinYearTagReport(fastCulLib):
+    """
+    Generate a papers by year and tag report in MoinMoin markup.
+    Report is returned as a multi-line string.
+    """
+    # Preprocess. Need to know order of tags and years.
+    tags = fastCulLib.getTags()
+    # Count number of papers with each tag
+    nPapersWTag = {}
+    for tag in tags:
+        nPapersWTag[tag] = len(fastCulLib.getPapers(tag=tag))
+
+    # sort tags by paper count, max first
+    tagsInCountOrder = [tag for tag in
+                        sorted(nPapersWTag.keys(),
+                               key=lambda keyValue: - nPapersWTag[keyValue])]
+
+    report = []                # now have everything we need; generate report
+    
+    # generate header
+    report.append('||<class="th"> Tag ')
+
+    for year in fastCulLib.getYears(): # years are listed chronologically
+        report.append('||<class="th"> ' + year + ' ')
+    report.append('||<class="th"> # ||\n')
+
+    # generate numbers per tag/year
+    for tag in tagsInCountOrder:  
+        report.append('||<class="th"> [[' + CUL_GROUP_TAG_BASE_URL + tag + "|"
+                      + tag + ']] ')
+        for year in fastCulLib.getYears():
+            papersForTagYear = fastCulLib.getPapers(tag=tag, year=year)
+            if papersForTagYear:
+                style = genMoinCountStyle(len(papersForTagYear))
+                count = str(len(papersForTagYear))
+            else:
+                style = ""
+                count = ""
+            report.append('||' + style + count + ' ')
+        report.append("||<)> '''" + str(nPapersWTag[tag]) + "''' ||\n")
+ 
+    # generate total line at bottom
+    report.append('||<class="th"> Total ')
+    for year in fastCulLib.getYears():
+        nPapersThisYear = len(fastCulLib.getPapers(year=year))
+        report.append('||<) class="th"> ' + str(nPapersThisYear) + ' ')
+    report.append(' ||<) class="th"> ' +
+                  str(len(fastCulLib.getPapers())) + ' ||\n')
+
+    return(u"".join(report))
+
+
+
+    
 def genTsvJournalReport(fastCulLib):
     """
     Generate a papers by by Journal and Year report in TSV.
@@ -309,6 +363,9 @@ def argghhs():
         "--tagyear", required=False, action="store_true",
         help="Produce table showing number of papers with each tag, each year.")
     argParser.add_argument(
+        "--yeartag", required=False, action="store_true",
+        help="Produce table showing number of papers with each year, each tag.")
+    argParser.add_argument(
         "--journalyear", required=False, action="store_true",
         help="Produce table showing number of papers in different journals, each year.")
     argParser.add_argument(
@@ -350,6 +407,21 @@ if args.tagyear:
         # generate tag year data in a tab delimited file
         tsvReport = genTsvTagYearReport(fastCulLib)
         print(tsvReport)
+
+if args.yeartag:
+
+    # Generate them reports
+
+    # options are to have one routine per report/format combo, or create a Moin
+    # report, or a tsv report and then have their separate methods do the dirty
+    # work. Try that.
+
+    # report showing papers by tag by year requested.
+    if args.moin:
+        # generate a tag year report in MoinMoin format.
+        moinReport = genMoinYearTagReport(fastCulLib)
+        print(moinReport)
+
 
 if args.journalyear:
     # Count how many papers appeared in each jounal in each year.
