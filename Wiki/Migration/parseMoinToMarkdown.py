@@ -6,6 +6,7 @@
 import argparse
 from pypeg2 import *                           # parser library.
 import re
+import os
 
 # What are the different types of things we hit in MoinMarkup?
         
@@ -804,10 +805,20 @@ class Argghhs(object):
 
     def __init__(self):
         argParser = argparse.ArgumentParser(
-            description="Convert a single wiki page (a file) from MoinMoin to Github Flavored Markdown")
+            description="Convert a single wiki page (a file) from MoinMoin to Github Flavored Markdown. Running this with no params does nothing.  Running with --debug produces a LOT of output. Markdown is sent to stdout.",
+            epilog="Example: " + os.path.basename(__file__) +
+            " --moinpage=Admin.moin --debug")
         argParser.add_argument(
-            "--moinpage", required=True,
+            "--moinpage", required=False, default=None,
             help="File containing a single MoinMoin page.")
+        argParser.add_argument(
+            "--runtests", required=False, 
+            help="Run Unit Tests.",
+            action="store_true")
+        argParser.add_argument(
+            "--debug", required=False, 
+            help="Include debug output",
+            action="store_true")
         self.args = argParser.parse_args()
 
         return(None)
@@ -841,6 +852,7 @@ def printList(list, indent=0):
 
 
 def runTests():
+    global args
 
     BulletList.test()
     SectionHeader.test()
@@ -884,13 +896,16 @@ This is the hub page for the section of this wiki on how to deploy and administe
 
     f = parse(text, Document)
 
+    if args.args.debug:
+        print("DEBUG: DOCUMENT UNIT TEST in COMPILED FORMAT:")
+        printList(f, 2)
+
     # What can we do with that parse now that we have it?
 
-    print(compose(f))
+    markdownText = compose(f)
 
-    printList(f, 2)
-
-    print("\n====\n====\nTESTS DONE\n====\n====")
+    if args.args.debug:
+        print("\n====\n====\nDEBUG: DOCUMENT UNIT TEST DONE\n====\n====")
 
     return
         
@@ -899,22 +914,28 @@ This is the hub page for the section of this wiki on how to deploy and administe
 # MAIN
 # #########################################
 
-runTests()
-
 args = Argghhs()                          # process command line arguments
 
-# Read in whole file at once.
-moinFile = open(args.args.moinpage, "r")
-moinText = moinFile.read()
-moinFile.close()
+if args.args.runtests:
+    runTests()
 
-# Replace the mystery character with a space.
-moinText = re.sub(" ", " ", moinText)
 
-parsedMoin = parse(moinText, Document)
-print(compose(parsedMoin))
-#printList(parsedMoin, 2)
+if args.args.moinpage:
+    # Read in whole file at once.
+    moinFile = open(args.args.moinpage, "r")
+    moinText = moinFile.read()
+    moinFile.close()
 
+    # Replace the mystery character with a space.
+    moinText = re.sub(" ", " ", moinText)
+
+    parsedMoin = parse(moinText, Document)
+    if args.args.debug:
+        print("DEBUG: DOCUMENT in PARSED FORM:")
+        printList(parseMoin, 2)
+        print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====n")
+
+    print(compose(parsedMoin))
 
 class BoldText:
     """
