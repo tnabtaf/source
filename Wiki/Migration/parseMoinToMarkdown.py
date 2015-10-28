@@ -88,6 +88,7 @@ class PlainText(List):
         testFail(" OK DOKE. <<", cls)
         testFail("Uh-huh, this text does'nt mean anything. [[", cls)
         testFail(" OK DOKE}}", cls)
+        testFail(" OK DOKE\n NOT! ", cls)
 
 class QuotedString(List):
     """
@@ -98,8 +99,7 @@ class QuotedString(List):
     """
     grammar = contiguous(
         attr("quotedText",
-             re.compile(r"""(?P<quote>['"])(?P<quotedText>.+?)(?P=quote)""",
-                        re.DOTALL)))
+             re.compile(r"""(?P<quote>['"])(?P<quotedText>.+?)(?P=quote)""")))
 
 
     def compose(self, parser, attr_of):
@@ -422,7 +422,7 @@ class BRMacro(List):
         """
         Test different instances of what this should and should not recognize
         """
-        parse("<<BR>>", cls)
+        parse("BR", cls)
 
 
 
