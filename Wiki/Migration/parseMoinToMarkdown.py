@@ -88,7 +88,7 @@ class PlainText(List):
         """
         # What should work
         parse(" Testing with no special terminator", cls)
-        parse(" OK DOKE \n", cls)
+        parse(" OK DOKE ", cls)
 
         # What should not work
         testFail(" OK DOKE[[", cls)
@@ -678,7 +678,11 @@ class BulletListItem(List):
         """
         Override compose method to generate Markdown.
         """
-        return("* " + compose(self.item) + "\n")
+        out = "* "
+        for subelement in self.item:
+            out += compose(subelement)
+        out += "\n"
+        return(out)
 
     @classmethod
     def test(cls):
@@ -743,6 +747,12 @@ class Paragraph(List):
     Paragraphs are text separated by blank lines or other tokens.
     """
     grammar = contiguous(some(Subelement))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        for item in self:
+            out += compose(item)
+        return(out)
 
     @classmethod
     def test(cls):
@@ -932,7 +942,7 @@ if args.args.moinpage:
     parsedMoin = parse(moinText, Document)
     if args.args.debug:
         print("DEBUG: DOCUMENT in PARSED FORM:")
-        printList(parseMoin, 2)
+        printList(parsedMoin, 2)
         print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====n")
 
     print(compose(parsedMoin))
