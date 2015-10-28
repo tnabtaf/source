@@ -49,7 +49,7 @@ class Punctuation(List):
         # What should not work
         testFail(" OK[", cls)
         testFail(" ", cls)
-        testFail("<", cls)
+        testFail("<<", cls)
         testFail("Uh-huh, this text does'nt mean anything. [[", cls)
         testFail("}}", cls)
 
@@ -70,7 +70,6 @@ class PlainText(List):
         """
         Override compose method to generate Markdown.
         """
-        print("YES")
         return(self.text)
         
         
@@ -138,7 +137,76 @@ class Bold(List):
         Test different instances of what this should and should not recognize
         """
         parse("'''", cls)
-    
+
+
+class Italic(List):
+    """
+    Two single quotes start and stop italics.
+
+    This must be processed after Bold.
+    """
+    grammar = contiguous("''")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("*")
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("''", cls)
+
+
+
+class CodeBlockStart(List):
+    """
+    {{{ starts a code block.
+    """
+    grammar = contiguous("{{{")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("\n```")
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("{{{", cls)
+
+
+class CodeBlockEnd(List):
+    """
+    }}} ends a code block.
+    """
+    grammar = contiguous("}}}")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("```\n")
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("}}}", cls)
+
+        
+
+
+
+        
+        
 
 # -------------
 # PagePath - defined here instead of in Links b/c of dependencies
@@ -333,7 +401,32 @@ class TOCMacro(List):
         parse("TableOfContents", cls)
         parse("TableOfContents(2)", cls)
 
-    
+
+class BRMacro(List):
+    """
+    BR macros insert a new line.
+      <<BR>>
+
+    That's it.
+    """
+    grammar = contiguous("BR")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("<br />")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("<<BR>>", cls)
+
+
+
+            
 class Macro(List):
     """
     MoinMoin can have macros link include, or div or TableOfContents.  Sometimes they
@@ -346,7 +439,7 @@ class Macro(List):
       TODO
     """
     grammar = contiguous(
-        "<<", attr("macro", [TOCMacro, IncludeMacro, DivMacro]), ">>")
+        "<<", attr("macro", [TOCMacro, IncludeMacro, DivMacro, BRMacro]), ">>")
 
 
     def compose(self, parser, attr_of):
@@ -358,6 +451,7 @@ class Macro(List):
         DivMacro.test()
         IncludeMacro.test()
         TOCMacro.test()
+        BRMacro.test()
         parse("<<div>>", cls)
         parse("<<div(center)>>", cls)
         parse("<<Include(FrontPage/Use Galaxy)>>", cls)
@@ -648,7 +742,7 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, Bold, QuotedString, PlainText, Punctuation])
+        [Macro, Link, Bold, Italic, QuotedString, PlainText, Punctuation])
 
     def compose(self, parser, attr_of):
         """
@@ -669,6 +763,7 @@ class Subelement(List):
         QuotedString.test()
         PlainText.test()
         Bold.test()
+        Italic.test()
         Punctuation.test()
 
 
@@ -799,7 +894,8 @@ class Element(List):
     Elements don't have to be at the top level, but they can be.
     """
     grammar = contiguous(
-        [SectionHeader, BulletList, Macro, Paragraph, TrailingWhitespace])
+        [SectionHeader, BulletList, Macro, CodeBlockStart, CodeBlockEnd,
+         Paragraph, TrailingWhitespace])
 
 
     def compose(self, parser, attr_of):
@@ -862,7 +958,7 @@ def testFail(testText, cls):
     """
     try:
         parsed = parse(testText, cls)
-        print(parsed.text)
+        print(parsed)
         print("ERROR: Test that should have failed did not fail.")
         print("Test:")
         print(testText)
@@ -905,8 +1001,8 @@ def runTests():
     PagePath.test()
     IncludeMacro.test()
     Macro.test()
-    Subelement.text()
-    #Paragraph.test()
+    Subelement.test()
+    Paragraph.test()
 
     text = """
 <<Include(Develop/LinkBox)>>
@@ -914,7 +1010,7 @@ def runTests():
 <<Include(FAQs/LinkBox)>>
 
 = Galaxy Administration =
-This is the hub page for the section of this wiki on how to deploy and administer your own copy of Galaxy.
+This is the '''hub page''' for the section of ''this wiki'' on how to deploy and administer your own copy of Galaxy.
 
 == Deploying ==
 
@@ -982,10 +1078,6 @@ if args.args.moinpage:
     print(compose(parsedMoin))
 
 
-class ItalicText:
-    """
-    This is wrapped in 2 single quotes. Can span multiple lines.
-    """
 
 class UnorderedList:
     """
