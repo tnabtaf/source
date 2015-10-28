@@ -22,7 +22,7 @@ class TrailingWhitespace(List):
 
 class Punctuation(List):
     """
-    Characters that aren't included in plaintext.
+    Characters that aren't included in plaintext or other tokens
 
     Matches a single character.
     """
@@ -61,14 +61,6 @@ class Punctuation(List):
 class PlainText(List):
     """
     Text with no special characters or punctuation in it.
-
-    A couple of things can end it:
-     [[   Link start
-     <<   Macro start
-     ]]   Link end
-     }}   Image attachement end
-     |    Separator within a link
-     \n
     """
     grammar = contiguous(
         attr("text", re.compile(r"[\w \t\f\v]+")))
@@ -78,6 +70,7 @@ class PlainText(List):
         """
         Override compose method to generate Markdown.
         """
+        print("YES")
         return(self.text)
         
         
@@ -101,7 +94,8 @@ class QuotedString(List):
     """
     String embedded in quotes, single or double.
 
-    Match includes the string.
+    Match includes the string.  Does not do the right thing with bolds or
+    italics, so they must be matched before this.
     """
     grammar = contiguous(
         attr("quotedText",
@@ -126,8 +120,25 @@ class QuotedString(List):
         parse(r'"= LAPTOP WITH BROWSER ="', cls)
 
 
+class Bold(List):
+    """
+    3 single quotes start and end bold in moinmoin
+    """
+    grammar = contiguous("'''")
 
-
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("**")
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("'''", cls)
+    
 
 # -------------
 # PagePath - defined here instead of in Links b/c of dependencies
@@ -637,7 +648,7 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, QuotedString, PlainText, Punctuation])
+        [Macro, Link, Bold, QuotedString, PlainText, Punctuation])
 
     def compose(self, parser, attr_of):
         """
@@ -648,6 +659,17 @@ class Subelement(List):
             out += compose(item)
         return(out)
 
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        Link.test()
+        Macro.test()
+        QuotedString.test()
+        PlainText.test()
+        Bold.test()
+        Punctuation.test()
 
 
 # ===========
@@ -854,12 +876,23 @@ def testFail(testText, cls):
 def printList(list, indent=0):
     for item in list:
         print("." * indent, item)
-        if isinstance(item, str):
-            print("s" * indent, item)
-        else:
+        if item != None and not isinstance(item, str):
             print("c" * indent, compose(item))
             printList(item, indent+2)
-
+        else:
+            print("n" * indent, "None")
+    try:
+        for name, item in list.__dict__.items():
+            if name not in ["position_in_text"]:
+                print("d" * indent, name, ":", item)
+                if item != None and not isinstance(item, str):
+                    if len(item) > 0:
+                        print("c" * indent, name, ":", compose(item))
+                        printList(item, indent+2)
+                else:
+                    print("n" * indent, name, ": None")
+    except AttributeError:
+        pass               # Classes that don't name any attr's have no dict
 
 def runTests():
     global args
@@ -872,6 +905,7 @@ def runTests():
     PagePath.test()
     IncludeMacro.test()
     Macro.test()
+    Subelement.text()
     #Paragraph.test()
 
     text = """
@@ -947,10 +981,6 @@ if args.args.moinpage:
 
     print(compose(parsedMoin))
 
-class BoldText:
-    """
-    This is wrapped in 3 single quotes. Can span multiple lines.
-    """
 
 class ItalicText:
     """
