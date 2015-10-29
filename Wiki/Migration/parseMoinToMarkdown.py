@@ -167,14 +167,22 @@ class Italic(List):
 class CodeBlockStart(List):
     """
     {{{ starts a code block.
+
+    Can also specify language.
+    {{{#!highlight ini
+    {{{#!csv
     """
-    grammar = contiguous("{{{")
+    grammar = contiguous(
+        "{{{",
+        optional("#!",
+                 optional("highlight", re.compile(r" +")),
+                 attr("format", re.compile(r"[^\s]+"))))
 
     def compose(self, parser, attr_of):
         """
         Override compose method to generate Markdown.
         """
-        return("\n```")
+        return("\n```" + self.format)
         
     @classmethod
     def test(cls):
@@ -182,6 +190,8 @@ class CodeBlockStart(List):
         Test different instances of what this should and should not recognize
         """
         parse("{{{", cls)
+        parse("{{{#!csv", cls)
+        parse("{{{#!highlight ini", cls)
 
 
 class CodeBlockEnd(List):
