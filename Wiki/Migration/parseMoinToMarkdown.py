@@ -409,18 +409,34 @@ class IncludeMacro(List):
         parse(r'Include(/Includes, , from="= LAPTOP =", to="END_INCLUDE")', cls)
         parse('Include(/Includes, , from="= LAPTOP =\\n", to="\\nEND_INCLUDE")', cls)
 
-class CenterDiv(List):
-    grammar = contiguous("center")
+class TitleDiv(List):
+    """
+    Title Div may get special handling because it might affect the YAML.
+    """
+    grammar = contiguous("title")
 
     def compose(self, parser, attr_of):
-        return("""<div class="center">""")
+        return("""<div class="title">""")
 
-        
-class KnownDivClass(List):
+
+class SpecialDiv(List):
+    """
+    Anything parsed by this requires something other than just generating a
+    div tag.
+    """
+    grammar = contiguous(TitleDiv)
+
+class OtherDiv(List):
+    """
+    Handles div classes that only need a div tag generated.
+    """
     grammar = contiguous(
-        [CenterDiv])
-#        [CenterDiv, IndentDiv, LeftDiv, RightDiv,
-#         SolidDiv, TitleDiv, NewsItemListDiv])  
+        attr("divClass", re.compile(r"\w+")))
+        
+    def compose(self, parser, attr_of):
+        return("<div class='" + self.divClass + "'>")
+
+
 
         
 class DivMacro(List):
@@ -434,8 +450,8 @@ class DivMacro(List):
     """
     grammar = contiguous(
         "div",
-        optional("(", KnownDivClass,
-            maybe_some(omit(whitespace), KnownDivClass),
+        optional("(", [SpecialDiv, OtherDiv],
+            maybe_some(omit(whitespace), [SpecialDiv, OtherDiv]),
             ")"))
 
     def compose(self, parser, attr_of):
