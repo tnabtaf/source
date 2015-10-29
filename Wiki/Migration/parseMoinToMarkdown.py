@@ -9,7 +9,10 @@ import re
 import os
 
 # What are the different types of things we hit in MoinMarkup?
-        
+
+
+
+
 # ################
 # Basic Text
 # ################
@@ -103,8 +106,9 @@ class Comment(List):
     """
     grammar = contiguous(
         "##",
-        optional(re.compile(r" +"),
-            optional(attr("comment", re.compile(r".+")))))
+        optional(re.compile(r" *"),
+            optional(attr("comment", re.compile(r".+")))),
+        TrailingWhitespace)
     
 
     def compose(self, parser, attr_of):
@@ -122,8 +126,8 @@ class Comment(List):
         Test different instances of what this should and should not recognize
         """
         # What should work
-        parse("##", cls)
-        parse("## ", cls)
+        parse("##\n", cls)
+        parse("## \n", cls)
         parse("## I sing the body ...\n", cls)
         parse("## page was renamed from Admin/Disk Quotas\n", cls)
 
@@ -436,8 +440,6 @@ class OtherDiv(List):
     def compose(self, parser, attr_of):
         return("<div class='" + self.divClass + "'>")
 
-
-
         
 class DivMacro(List):
     """
@@ -528,8 +530,6 @@ class BRMacro(List):
         Test different instances of what this should and should not recognize
         """
         parse("BR", cls)
-
-
 
             
 class Macro(List):
@@ -1104,7 +1104,71 @@ class Element(List):
         Paragraph.test()
         #TrailingWhitespace.test()
             
+
+# =================
+# Processing Instructions
+# =================
+
+
+class FormatPI(List):
+    grammar = contiguous(
+        "#format ",
+        attr("format", re.compile(r"[\w/]+")))
+
+    def compose(self, parser, attr_of):
+        if self.format == "wiki":
+            return("")
+        else:
+            raise NotImplementedError(self.format + " parsing is not supported.")
+
+#    @classmethod
+#    def parse(cls, parser, text, pos):
+#        print("YES", text, pos)
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("#format wiki", cls)
+        parse("#format text/creole", cls)
+        
+
+class ProcessingInstruction(List):
+    """
+    Happen at top of file.
+
+    Have the form
+     #format        - lots 
+     #redirect      - lots
+     #refresh       - have one of these
+     #pragma        - have 2
+     #deprecated    - have 0
+     #language      - have 51 of these, all en
+
+    Comments, which start with ## are handled elsewhwere.
+    """
+    grammar = contiguous(attr("pi", FormatPI))
+
     
+#        attr("pi",[FormatPI, RedirectPI, RefreshPI, PragmaPI, LanguagePI]),
+
+    
+    def compose(self, parser, attr_of):
+        return(compose(self.pi))
+    
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        FormatPI.test()
+        parse("#format wiki\n", cls)
+        parse("#format text/creole\n", cls)
+        
+
+
+        
 class Document(List):
     """
     Parse the whole page.
@@ -1115,8 +1179,15 @@ class Document(List):
     Does the page arrive as a list of text lines?
     """
     grammar = contiguous(
+        maybe_some([ProcessingInstruction, Comment]),
         maybe_some(Element))
 
+
+    @classmethod
+    def test(cls):
+        parse("""#format wiki
+#language en
+##master-page:HomepageTemplate""", cls)
 
 
 
@@ -1191,6 +1262,7 @@ def printList(list, indent=0):
 def runTests():
     global args
 
+    ProcessingInstruction.test()
     BulletList.test()
     SectionHeader.test()
     PlainText.test()
@@ -1202,6 +1274,7 @@ def runTests():
     Subelement.test()
     Paragraph.test()
     Element.test()
+    Document.test()
 
     text = """
 <<Include(Develop/LinkBox)>>
@@ -1285,6 +1358,19 @@ class Dictionary(List):
 
     TODO: Figure out if stuff in dictionaries should go in YAML.
     """
+
+class WikiWordLinks(List):
+    """
+    Need to handle Camel Case words that are links.
+    """
+class CategoryLinks(List):
+    """
+    What to do with Category links?
+
+    They are WikiWordLinks that start with the word "Category".
+    """
+
+
     
 class DoublePipe:
     """
