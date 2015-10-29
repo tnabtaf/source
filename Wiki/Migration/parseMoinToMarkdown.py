@@ -311,9 +311,9 @@ class PagePath(str):
     Used when we know we have a page name.
 
     Allowable characters are alphanumerics, spaces, periods, hash marks,
-    and slashes, in any combination
+    dashes, and slashes, in any combination
     """
-    grammar = contiguous(re.compile(r"[\w \.#/]+"))
+    grammar = contiguous(re.compile(r"[\w \.#/\-]+"))
 
     @classmethod
     def test(cls):
@@ -1134,6 +1134,34 @@ class FormatPI(List):
         parse("#format text/creole", cls)
         
 
+class RedirectPI(List):
+    """
+    Not sure what to do with redirects.
+
+    Probably want to have a clean slate as far as redirects go.  Which
+    means don't do anything with them.
+    """
+    grammar = contiguous(
+        re.compile(r"#REDIRECT ", re.IGNORECASE),
+        attr("redirect", PagePath))
+
+    def compose(self, parser, attr_of):
+        raise NotImplementedError("Not generating REDIRECT Pages. Letting them die.")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("#REDIRECT CloudMan/AWS/AMIs\n", cls)
+        parse("#REDIRECT Learn/IntervalOperations", cls)
+        parse("#redirect Events/Meetups/Baltimore/20150122", cls)
+        parse("#redirect Events/Meetups/Baltimore/2015-01-22", cls)
+        parse("#redirect Events/Meetups/Baltimore/2015-01-22\n", cls)
+        parse("#redirect Events/Meetups/Baltimore/2015-01-22 \n", cls)
+
+
+        
 class ProcessingInstruction(List):
     """
     Happen at top of file.
@@ -1148,7 +1176,7 @@ class ProcessingInstruction(List):
 
     Comments, which start with ## are handled elsewhwere.
     """
-    grammar = contiguous(attr("pi", FormatPI))
+    grammar = contiguous(attr("pi", [FormatPI, RedirectPI]))
 
     
 #        attr("pi",[FormatPI, RedirectPI, RefreshPI, PragmaPI, LanguagePI]),
@@ -1163,11 +1191,10 @@ class ProcessingInstruction(List):
         Test different instances of what this should and should not recognize
         """
         FormatPI.test()
+        RedirectPI.test()
         parse("#format wiki\n", cls)
         parse("#format text/creole\n", cls)
         
-
-
         
 class Document(List):
     """
@@ -1185,9 +1212,8 @@ class Document(List):
 
     @classmethod
     def test(cls):
-        parse("""#format wiki
-#language en
-##master-page:HomepageTemplate""", cls)
+        parse("""#REDIRECT CloudMan/AWS/AMIs
+""", cls)
 
 
 
