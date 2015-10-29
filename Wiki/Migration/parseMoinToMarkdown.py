@@ -20,6 +20,8 @@ class TrailingWhitespace(List):
     def compose(self, parser, attr_of):
         return ("\n")
 
+
+    
 class Punctuation(List):
     """
     Characters that aren't included in plaintext or other tokens
@@ -853,6 +855,82 @@ class BulletList(List):
 
 
 
+class NumberedListItem(List):
+    """
+    An individual entry in a numbered list.
+
+    Look like
+     1. Text here.
+     1. More Here.
+    or
+     1. Item 1
+     2. Item 2
+    """
+    grammar = contiguous(
+        attr("depth", re.compile(r" *")),
+        attr("number", re.compile(r"\d+\.")),
+        re.compile(r" +"),
+        attr("item", some(Subelement)),
+        re.compile(r" *"),
+        "\n"
+        )
+
+
+    def compose(self, parser, attr_of):
+        out = "1. "
+        for subelement in self.item:
+            out += compose(subelement)
+        out += "\n"
+        return(out)
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse(" 1. E\n", cls)
+        parse(" 2. Electric boogaloo\n", cls)
+        parse(" 11. A simple case.\n", cls)
+        parse(" 12. A simple case \n", cls)
+
+
+class NumberedList(List):
+    """
+    Look like
+     1. Text goes here
+     1. More text here
+
+    TODO: Deal with depth.
+    """
+    grammar = contiguous(some(NumberedListItem))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        for item in self:
+            out += compose(item)
+        return(out)
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        BulletListItem.test()
+        parse(" 1. One Item Only\n", cls)
+        parse(" 2. A simple case.\n 3. With two items\n", cls)
+        parse(""" 22. A simple case.
+   24. With nested item
+""", cls)
+        parse(""" 17. A simpler case.
+   1. With nested item
+   1. and another
+""", cls)
+        parse(""" 1. A less simplerer case.
+   1. With nested item
+   1. And another
+     1. and More!
+   1. Uh huh.
+""", cls)
 
 
 # ================
@@ -894,7 +972,7 @@ class Element(List):
     Elements don't have to be at the top level, but they can be.
     """
     grammar = contiguous(
-        [SectionHeader, BulletList, Macro, CodeBlockStart, CodeBlockEnd,
+        [SectionHeader, BulletList, NumberedList, Macro, CodeBlockStart, CodeBlockEnd,
          Paragraph, TrailingWhitespace])
 
 
@@ -906,6 +984,19 @@ class Element(List):
             return(self[0])
         return(compose(self[0]))
 
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        SectionHeader.test()
+        BulletList.test()
+        NumberedList.test()
+        Macro.test()
+        CodeBlockStart.test()
+        CodeBlockEnd.test()
+        Paragraph.test()
+        #TrailingWhitespace.test()
             
     
 class Document(List):
@@ -1003,6 +1094,7 @@ def runTests():
     Macro.test()
     Subelement.test()
     Paragraph.test()
+    Element.test()
 
     text = """
 <<Include(Develop/LinkBox)>>
@@ -1078,12 +1170,6 @@ if args.args.moinpage:
     print(compose(parsedMoin))
 
 
-
-class UnorderedList:
-    """
-    Unordered lists are a series of consecutive rows that start with spaces * spaces text.
-    They must all have the same indent.
-    """
     
 class OrderedList:
     """
