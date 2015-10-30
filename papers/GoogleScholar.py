@@ -96,11 +96,11 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
         startingSearch = GSEmail.searchStartRe.match(data)
         if startingSearch:
-            self.search += data
+            self.search += DamnUnicode.cauterizeWithDecode(data)
             self.inSearch = True
 
         elif self.inSearch:
-            self.search += " " + data
+            self.search += " " + DamnUnicode.cauterizeWithDecode(data)
 
         elif self.inTitleText and data:
             # sometimes we lose space between too parts of title.

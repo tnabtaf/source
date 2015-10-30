@@ -414,7 +414,7 @@ def reportPaper(matchup):
                              href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.title,
                              target="pubmedtitlesearch"):
                         text("Search Pubmed")
-                        
+
     reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
 
     # do some cleanup

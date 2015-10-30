@@ -5,7 +5,6 @@
 # Each alert describes a list of papers from a particular source, reported as a group.
 
 import re
-import HTMLParser
 
 
 class PaperAlert(object):

@@ -128,8 +128,10 @@ class CiteULikeLibrary(object):
             if titleLower not in self.byTitleLower:
                 self.byTitleLower[titleLower] = []
             else:
-                print("Title already in library", culEntry.getTitle(), culEntry.getDoi(),
-                      self.byTitleLower[titleLower][0].getDoi())
+                print("Title already in library<br />")
+                print("  ", culEntry.getTitle(), "<br />")
+                print("    ", culEntry.getDoi(), "<br />")
+                print("    ", self.byTitleLower[titleLower][0].getDoi(), "<br />")
             self.byTitleLower[titleLower].append(culEntry)
             doi = culEntry.getDoi()
             if doi:

@@ -9,9 +9,7 @@ import getpass                            #
 import imaplib                            # Email protocol
 import urlparse
 import os.path
-import urllib2
 import re
-import urllib
 
 import HTMLParser
 import DamnUnicode

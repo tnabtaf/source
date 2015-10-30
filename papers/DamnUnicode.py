@@ -16,6 +16,7 @@ def cauterize(textToCauterize):
     workingText = workingText.replace(u'\u00CD', "i")
     workingText = workingText.replace(u'\u00CE', "I")
     workingText = workingText.replace(u'\u00D1', "N")
+    workingText = workingText.replace(u'\u00D7', "X")
     workingText = workingText.replace(u'\u00E1', "a")    
     workingText = workingText.replace(u'\u00E2', "a")    
     workingText = workingText.replace(u'\u00E4', "a")
