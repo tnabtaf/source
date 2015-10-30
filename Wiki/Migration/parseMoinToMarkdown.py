@@ -644,7 +644,7 @@ class ExternalLink(List):
         "[[",
         attr("protocol", LinkProtocol),
         attr("path", PagePath),
-        optional("|", attr("linkText", re.compile(r".+(?=\]\])"))),
+        optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
     def compose(self, parser, attr_of):
@@ -694,7 +694,7 @@ class InternalLink(List):
         "[[",
         maybe_some(whitespace),
         attr("path", PagePath),
-        optional("|", attr("linkText", re.compile(r".+(?=\]\])"))),
+        optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
     def compose(self, parser, attr_of):
@@ -831,6 +831,7 @@ class Link(List):
         ExternalLink.test()
         InternalLink.test()
         ImageLink.test()
+        parse("[[https://developers.google.com/open-source/soc|Google Summer of Code 2015]]", cls)
         parse(" [[http://link.com|Link to here]]", cls)
         parse("[[LinkToPage]]", cls)
         parse("[[LinktoPage|Text shown for link]]", cls)
@@ -1181,6 +1182,27 @@ class RefreshPI(List):
         parse("#refresh http:/a.b.c/CloudMan/AWS/AMIs\n", cls)
         parse("#refresh https://Learn/IntervalOperations#fish", cls)
 
+class PragmaPI(List):
+    """
+    Pragma is used to control some behavious.  The only one we have is
+
+      #pragma section-numbers off    
+
+    I'm going to make an executive decision that we don't care about these
+    """
+    grammar = contiguous(
+        re.compile(r"#pragma "),
+        attr("pragma", restline))
+
+    def compose(self, parser, attr_of):
+        return("")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("#pragma section-numbers off", cls)
 
         
 class ProcessingInstruction(List):
@@ -1191,14 +1213,15 @@ class ProcessingInstruction(List):
      #format        - lots 
      #redirect      - lots
      #refresh       - have one of these
-     #pragma        - have 2
+     #pragma        - have 2 both are
+       #pragma section-numbers off
      #deprecated    - have 0
      #language      - have 51 of these, all en
 
     Comments, which start with ## are handled elsewhwere.
     """
     grammar = contiguous(
-        attr("pi", [FormatPI, RedirectPI, RefreshPI]))
+        attr("pi", [FormatPI, RedirectPI, RefreshPI, PragmaPI]))
 
     
 #        attr("pi",[FormatPI, RedirectPI, RefreshPI, PragmaPI, LanguagePI]),
@@ -1215,6 +1238,7 @@ class ProcessingInstruction(List):
         FormatPI.test()
         #RedirectPI.test()
         #RefreshPI.test()
+        PragmaPI.test()
         parse("#format wiki\n", cls)
         parse("#format text/creole\n", cls)
         
