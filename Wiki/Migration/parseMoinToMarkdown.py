@@ -29,9 +29,10 @@ class Punctuation(List):
     Characters that aren't included in plaintext or other tokens
 
     Matches a single character.
+    Prevent matching with table cell ending.
     """
     grammar = contiguous(
-        attr("punctuation", re.compile(r"[^\w\s]")))
+        attr("punctuation", re.compile(r"[^\w\s(?=\|\|)]")))
     
 
     def compose(self, parser, attr_of):
@@ -843,6 +844,9 @@ class ImageLink(List):
               cls)
         parse('[[http://gt.g/gy|{{attachment:Is/L/G.png|s a|width="120"}}]]',
               cls)
+        parse('[[http://workflow4metabolomics.org/training/W4Mcourse2015|{{attachment:Images/Logos/w4m_logo_small.png|Traitement des données métabolomiques sous Galaxy|height="80"}}]]', cls)
+        parse('[[http://wacd.abrf.org/|{{attachment:Images/Logos/WACD.png|Western Association of Core Directors (WACD) Annual Meeting|height="70"}}]]', cls)
+
         
        
 
@@ -887,9 +891,6 @@ class Subelement(List):
 
     Subelements can also be elements.
     """
-#    grammar = contiguous(
-#        [Macro, Link, Bold, Italic, QuotedString, InlineComment,
-#         PlainText, Punctuation])
     grammar = contiguous(
         [Macro, Link, Bold, Italic, InlineComment,
          PlainText, Punctuation])
@@ -1081,6 +1082,224 @@ class NumberedList(List):
 """, cls)
 
 
+
+
+# ===========
+# Tables - EEK!
+# ===========
+
+
+class CellMod(List):
+    """
+    Moin uses special characters to modify cell format.  This captures any
+    one of them.
+
+    These include
+      -2    colspan
+      |2    rowspan
+      50%   cell width        - have no idea if we use this.
+      width="50%" cell width  ~ about 20 pages
+      (           left aligned (will append text-align: left; to style)
+      :           centered
+      )           right aligned (will append text-align: right; to style)
+      ^           aligned to top (will append vertical-align: top; to style)
+      v           aligned to bottom (will append vertical-align: bottom; to style)
+      bgcolor="#XXXXXX"          - used in 10 places
+
+    Not used in Galaxy Wiki:
+      tablewidth="100%"
+      #XXXXXX     background color  - don't think this is used
+      rowbgcolor="#XXXXXX" set row background color (only valid in first cell)
+      tablebgcolor="#XXXXXX" set table background color
+    """
+    grammar = contiguous(
+        [("-", attr("colspan", re.compile(r"\d+"))),
+         ("|", attr("rowspan", re.compile(r"\d+"))),
+         attr("left", "("),
+         attr("right", ")"),
+         attr("center", ":"),
+         attr("top", "^"),
+         attr("bottom", "v"),
+         ("bgcolor=", attr("bgcolor", QuotedString)), 
+         [
+             (optional("width="), attr("width", QuotedString)),
+             (attr("width", re.compile(r"\d+(%|em|ex|px|cm|mm|in|pt|pc)")))]
+        ])
+
+    def compose(self, parser, attr_of):
+        """
+        Ignore CellMods for the time being.
+        TODO
+        """
+        return("")
+
+    
+    @classmethod
+    def test(cls):
+        parse("|7", cls)
+
+    
+
+
+class TableCell(List):
+    grammar = contiguous(
+        optional(
+            "<",
+            attr("rowFormat",
+                 maybe_some( [
+                    ("style=", attr("cellStyle", QuotedString)),
+                    ("class=", attr("cellClass", QuotedString))
+                 ])),
+            maybe_some(attr("cellMods", CellMod)),
+            ">"),
+       
+        maybe_some(" "),
+        attr("cellContent", maybe_some(Subelement)),
+        maybe_some(" "),
+        "||")
+
+    def compose(self, parser, attr_of):
+        """
+        Compose a cell.
+
+        It's up to the table/tablerow to make sure the leading || is already
+        in place.  Each cell is responsible for it's trailing ||.
+        """
+
+        # start simple; TODO
+        try:
+            out = " "
+            for item in self.cellContent:
+                out += compose(item)
+            return(out + "|")
+        except AttributeError:
+            return("")
+
+     
+    @classmethod
+    def test(cls):
+        CellMod.test()
+        parse("<|5> Text ||", cls)
+        parse(" ||", cls)
+        parse(" Electric boogaloo||", cls)
+        print(compose(parse('Topic/Event ||', cls)))
+
+
+class RowStyle(List):
+    grammar = contiguous(
+        "rowstyle=", attr("rowStyle", QuotedString))     
+
+    def compose(self, parser, attr_of):
+        return("ROWSTYLE=" + compose(self.rowStyle))
+
+    @classmethod
+    def test(cls):
+        parse('rowstyle="border: none"', cls)    
+
+
+
+class RowClass(List):
+    grammar = contiguous(
+        "rowclass=", attr("rowClass", QuotedString))     
+
+    def compose(self, parser, attr_of):
+        return("ROWCLASS=" + compose(self.rowClass))
+
+    @classmethod
+    def test(cls):
+        parse('rowclass="th"', cls)
+
+
+
+class RowFormatItem(List):
+    grammar = contiguous(
+        optional(omit(whitespace)),
+        [RowStyle, RowClass, CellMod],
+        optional(omit(whitespace)))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        for item in self:
+            out += compose(item)
+        return(out)
+
+    @classmethod
+    def test(cls):
+        RowClass.test()
+        RowStyle.test()
+        CellMod.test()
+        
+class TableRow(List):
+    """
+    An individual table row
+
+    Look like
+    ||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||
+    """
+    grammar = contiguous(
+        "||",
+        optional(
+            "<",
+            attr("rowFormat", some(RowFormatItem)),
+            ">"),
+        attr("rowCells", some(TableCell)),
+        "\n"
+        )
+    
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        # Start simple; TODO
+        out = ""
+        for cell in self.rowCells:
+            print("YES2", cell)
+            out += compose(cell)
+        return(out + "\n")
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        RowFormatItem.test()
+        TableCell.test()
+        parse('|| ||\n', cls)
+        parse('||<|2> ||\n', cls)
+        parse('||<|7 rowclass="th"> ||\n', cls)
+        parse("||<|5> Text ||\n", cls)
+        parse("|| Electric boogaloo||\n", cls)
+        print(compose(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n', cls)))
+
+
+class Table(List):
+    """
+    There is no explicit table start or end text in MoinMoin.  A table starts
+    with the first row, and then goes until there is no more rows.
+    """
+    grammar = contiguous(attr("tableRows", some(TableRow)))
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = ""
+        for row in self.tableRows:
+            print("YES", row)
+            out += compose(row)
+        return(out)
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        TableRow.test()
+        printList(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls))
+
+        
+
 # ================
 # Paragraph
 # ================
@@ -1120,7 +1339,8 @@ class Element(List):
     Elements don't have to be at the top level, but they can be.
     """
     grammar = contiguous(
-        [SectionHeader, BulletList, NumberedList, Macro, CodeBlockStart, CodeBlockEnd,
+        [SectionHeader, BulletList, NumberedList, Table, Macro,
+         CodeBlockStart, CodeBlockEnd,
          Comment, Paragraph, TrailingWhitespace])
 
 
@@ -1141,6 +1361,7 @@ class Element(List):
         BulletList.test()
         NumberedList.test()
         Macro.test()
+        Table.test()
         CodeBlockStart.test()
         CodeBlockEnd.test()
         Comment.test()
