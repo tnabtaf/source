@@ -23,7 +23,7 @@ class TrailingWhitespace(List):
     def compose(self, parser, attr_of):
         return ("\n")
 
-    
+
 class Punctuation(List):
     """
     Characters that aren't included in plaintext or other tokens
@@ -179,6 +179,9 @@ class QuotedString(List):
 
     Match includes the string.  Does not do the right thing with bolds or
     italics, so they must be matched before this.
+
+    Only called when we expect to have a quoted string (like in a Macro).
+    Using this in the general case wreaks havoc because of apostrophes.
     """
     grammar = contiguous(
         attr("quotedText",
@@ -297,23 +300,29 @@ class CodeBlockEnd(List):
         
 
 
-
-        
-        
-
 # -------------
 # PagePath - defined here instead of in Links b/c of dependencies
 # -------------
 
-class PagePath(str):
+class InternalPagePath(str):
     """
-    path to a page.  Can be absolute or relative.
+    path to an internal page.  Can be absolute or relative.
+
+    Internal pages can match on fewer characters than external pages
     Used when we know we have a page name.
 
-    Allowable characters are alphanumerics, spaces, periods, hash marks,
-    dashes, and slashes, in any combination
+    Allowable characters for general URLs are
+      ALPHA / DIGIT / "-" / "." / "_" / "~" 
+      ":" / "/" / "?" / "#" / "[" / "]" / "@"  - can't handle [] internally
+      "!" / "$" / "&" / "'" / "(" / ")"        - can't handle () ...
+      / "*" / "+" / "," / ";" / "="            - can't handle ,  ...
+      spaces
+      % 
+    in any combination
+    See http://stackoverflow.com/questions/1856785/characters-allowed-in-a-url
     """
-    grammar = contiguous(re.compile(r"[\w \.#/\-]+"))
+    grammar = contiguous(re.compile(r"[\w\-\.~:/?#@!\$&'\*+;= %]+"))
+
 
     @classmethod
     def test(cls):
@@ -323,6 +332,35 @@ class PagePath(str):
         parse("FrontPage/Use Galaxy", cls)
         parse("FrontPage/Use Galaxy#This Part of the page", cls)
         parse("/Includes", cls)
+
+
+class ExternalPagePath(str):
+    """
+    path to an external page.  
+
+    Allowable characters are
+      ALPHA / DIGIT / "-" / "." / "_" / "~" 
+      ":" / "/" / "?" / "#" / "[" / "]" / "@"  - can't handle []
+      "!" / "$" / "&" / "'" / "(" / ")"        
+      / "*" / "+" / "," / ";" / "="
+      spaces
+      % 
+    in any combination
+    See http://stackoverflow.com/questions/1856785/characters-allowed-in-a-url
+    """
+    grammar = contiguous(re.compile(r"[\w\-\.~:/?#@!\$&'\(\)\*+, ;= %]+"))
+
+    
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("FrontPage/Use Galaxy", cls)
+        parse("FrontPage/Use Galaxy#This Part of the page", cls)
+        parse("/Includes", cls)
+        parse("developers.google.com/+/features/sign-in", cls)
+
 
 
         
@@ -389,7 +427,7 @@ class IncludeMacro(List):
     grammar = contiguous(
         "Include(",
         maybe_some(whitespace),
-        attr("pagePath", PagePath),
+        attr("pagePath", InternalPagePath),
         maybe_some(whitespace),
         attr("params", maybe_some(IncludeMacroParameter)), ")")
 
@@ -407,7 +445,7 @@ class IncludeMacro(List):
         """
         Test different instances of what this should and should not recognize
         """
-        PagePath.test()
+        InternalPagePath.test()
         IncludeMacroParameter.test()
         parse("Include(FrontPage/Use Galaxy)", cls)
         parse(r'Include(/Includes, , from="= LAPTOP =", to="END_INCLUDE")', cls)
@@ -472,7 +510,6 @@ class DivMacro(List):
         """
         Test different instances of what this should and should not recognize
         """
-        PagePath.test()
         parse("div(center)", cls)
         parse("div", cls)
 
@@ -487,7 +524,7 @@ class TOCMacro(List):
     grammar = contiguous(
         "TableOfContents",
         optional(
-            "(", attr("maxDepth", re.compile(r"\d+")), ")"))
+            "(", optional(attr("maxDepth", re.compile(r"\d+"))), ")"))
 
     def compose(self, parser, attr_of):
         """
@@ -643,7 +680,7 @@ class ExternalLink(List):
     grammar = contiguous(
         "[[",
         attr("protocol", LinkProtocol),
-        attr("path", PagePath),
+        attr("path", ExternalPagePath),
         optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
@@ -693,7 +730,7 @@ class InternalLink(List):
     grammar = contiguous(
         "[[",
         maybe_some(whitespace),
-        attr("path", PagePath),
+        attr("path", InternalPagePath),
         optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
@@ -754,10 +791,11 @@ class ImageLink(List):
     """
     grammar = contiguous(
         "[[",
-        optional(attr("protocol", LinkProtocol)),
-        attr("linkPath", PagePath),
+        [(attr("protocol", LinkProtocol), attr("linkPath", ExternalPagePath)),
+         attr("linkPath", InternalPagePath)],
         "|{{attachment:",
-        attr("imagePath", PagePath),
+        [(attr("imageProtocol", LinkProtocol), attr("imagePath", ExternalPagePath)),
+         attr("imagePath", InternalPagePath)],
         optional(
             "|",
             optional(attr("altText", re.compile(r"[^}|]*"))),
@@ -835,7 +873,9 @@ class Link(List):
         parse(" [[http://link.com|Link to here]]", cls)
         parse("[[LinkToPage]]", cls)
         parse("[[LinktoPage|Text shown for link]]", cls)
-        
+        parse("[[https://developers.google.com/+/features/sign-in|Google+ sign-in]]", cls)
+        parse("[[http://www.citeulike.org/group/16008/order/to_read,desc,|Galaxy papers on CituLike]]", cls)
+        parse("[[http://bioblend.readthedocs.org/en/latest/|bioblend]]", cls)
 
 # =============
 # Subelements
@@ -847,10 +887,12 @@ class Subelement(List):
 
     Subelements can also be elements.
     """
+#    grammar = contiguous(
+#        [Macro, Link, Bold, Italic, QuotedString, InlineComment,
+#         PlainText, Punctuation])
     grammar = contiguous(
-        [Macro, Link, Bold, Italic, QuotedString, InlineComment,
+        [Macro, Link, Bold, Italic, InlineComment,
          PlainText, Punctuation])
-
     def compose(self, parser, attr_of):
         """
         Override compose method to generate Markdown.
@@ -1144,7 +1186,7 @@ class RedirectPI(List):
     """
     grammar = contiguous(
         re.compile(r"#REDIRECT ", re.IGNORECASE),
-        attr("redirect", PagePath))
+        attr("redirect", InternalPagePath))
 
     def compose(self, parser, attr_of):
         raise NotImplementedError("Not generating REDIRECT Pages. Letting them die.")
@@ -1341,7 +1383,8 @@ def runTests():
     PlainText.test()
     Link.test()
     QuotedString.test()
-    PagePath.test()
+    InternalPagePath.test()
+    ExternalPagePath.test()
     IncludeMacro.test()
     Macro.test()
     Subelement.test()
