@@ -1160,6 +1160,27 @@ class RedirectPI(List):
         parse("#redirect Events/Meetups/Baltimore/2015-01-22\n", cls)
         parse("#redirect Events/Meetups/Baltimore/2015-01-22 \n", cls)
 
+class RefreshPI(List):
+    """
+    The refresh is effectively a redirect to an external page.
+
+    We aren't propoagating redirects, don't propagate refreshes either.
+    """
+    grammar = contiguous(
+        re.compile(r"#refresh "),
+        attr("redirect", restline))
+
+    def compose(self, parser, attr_of):
+        raise NotImplementedError("Not generating refresh Pages. Letting them die.")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("#refresh http:/a.b.c/CloudMan/AWS/AMIs\n", cls)
+        parse("#refresh https://Learn/IntervalOperations#fish", cls)
+
 
         
 class ProcessingInstruction(List):
@@ -1176,7 +1197,8 @@ class ProcessingInstruction(List):
 
     Comments, which start with ## are handled elsewhwere.
     """
-    grammar = contiguous(attr("pi", [FormatPI, RedirectPI]))
+    grammar = contiguous(
+        attr("pi", [FormatPI, RedirectPI, RefreshPI]))
 
     
 #        attr("pi",[FormatPI, RedirectPI, RefreshPI, PragmaPI, LanguagePI]),
@@ -1191,7 +1213,8 @@ class ProcessingInstruction(List):
         Test different instances of what this should and should not recognize
         """
         FormatPI.test()
-        RedirectPI.test()
+        #RedirectPI.test()
+        #RefreshPI.test()
         parse("#format wiki\n", cls)
         parse("#format text/creole\n", cls)
         
