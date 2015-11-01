@@ -32,7 +32,7 @@ class Punctuation(List):
     Prevent matching with table cell ending.
     """
     grammar = contiguous(
-        attr("punctuation", re.compile(r"[^\w\s(?=\|\|)]")))
+        attr("punctuation", re.compile(r"([^\w\s\|])|(\|(?=[^\|]|$))")))
     
 
     def compose(self, parser, attr_of):
@@ -50,8 +50,11 @@ class Punctuation(List):
         # What should work
         parse(".", cls)
         parse("/", cls)
+        parse("?", cls)
+        parse("|", cls)
 
         # What should not work
+        testFail("||", cls)
         testFail(" OK[", cls)
         testFail(" ", cls)
         testFail("<<", cls)
@@ -569,7 +572,52 @@ class BRMacro(List):
         """
         parse("BR", cls)
 
+
+class MailToMacro(List):
+    """
+    MailTo Macros look like
+      <<MailTo(bioinformatics.core@ucdavis.edu, UC Davis Bioinformatics)>>
+      <<MailTo(bioinformatics.core@ucdavis.edu)>>
+      <<MailTo(bioinformatics.core AT ucdavis DOT edu, UC Davis Bioinformatics)>>
+      <<MailTo(bioinformatics.core AT ucdavis DOT edu)>>
+    """
+    grammar = contiguous(
+        "MailTo(",
+        maybe_some(" "),
+        attr("emailAdress", re.compile(r"[^\,\)]+")),
+        optional(
+            ",",
+            maybe_some(" "),
+            attr("toText", re.compile(r"[^\)]+")),
+            maybe_some(" ")
+            ),
+        ")" )
             
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "MAIL_TO(" + self.emailAddress
+        try:
+            out += ", " + self.toText
+        except AttributeError:
+            pass
+        return(out + ")")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("MailTo(q)", cls)
+        parse("MailTo(bioinformatics.core@ucdavis.edu)", cls)
+        parse("MailTo(bioinformatics.core@ucdavis.edu, UC Davis Bioinformatics)", cls)
+        parse("MailTo(bioinformatics.core AT ucdavis.edu, UC Davis Bioinformatics)", cls)
+        parse('MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)', cls)
+
+
+
 class Macro(List):
     """
     MoinMoin can have macros link include, or div or TableOfContents.  Sometimes they
@@ -582,7 +630,10 @@ class Macro(List):
       TODO
     """
     grammar = contiguous(
-        "<<", attr("macro", [TOCMacro, IncludeMacro, DivMacro, BRMacro]), ">>")
+        "<<",
+        attr("macro",
+            [TOCMacro, IncludeMacro, DivMacro, BRMacro, MailToMacro]),
+        ">>")
 
 
     def compose(self, parser, attr_of):
@@ -591,6 +642,7 @@ class Macro(List):
 
     @classmethod
     def test(cls):
+        MailToMacro.test()
         DivMacro.test()
         IncludeMacro.test()
         TOCMacro.test()
@@ -1089,7 +1141,7 @@ class NumberedList(List):
 # ===========
 
 
-class CellMod(List):
+class CellMoinFormatItem(List):
     """
     Moin uses special characters to modify cell format.  This captures any
     one of them.
@@ -1104,6 +1156,8 @@ class CellMod(List):
       )           right aligned (will append text-align: right; to style)
       ^           aligned to top (will append vertical-align: top; to style)
       v           aligned to bottom (will append vertical-align: bottom; to style)
+      class="th"
+      style="border: none"
       bgcolor="#XXXXXX"          - used in 10 places
 
     Not used in Galaxy Wiki:
@@ -1120,6 +1174,8 @@ class CellMod(List):
          attr("center", ":"),
          attr("top", "^"),
          attr("bottom", "v"),
+         ("class=", attr("cellClass", QuotedString)),
+         ("style=", attr("cellStyle", QuotedString)),
          ("bgcolor=", attr("bgcolor", QuotedString)), 
          [
              (optional("width="), attr("width", QuotedString)),
@@ -1128,33 +1184,116 @@ class CellMod(List):
 
     def compose(self, parser, attr_of):
         """
-        Ignore CellMods for the time being.
+        Ignore CellMoinFormatItems for the time being.
         TODO
         """
-        return("")
+        if hasattr(self, "colspan"):
+            return("COLSPAN=" + compose(self.colspan))
+        elif hasattr(self, "rowspan"):
+            return("ROWSPAN=" + compose(self.rowspan))
+        elif hasattr(self, "left"):
+            return("LEFT")
+        elif hasattr(self, "right"):
+            return("RIGHT")
+        elif hasattr(self, "center"):
+            return("CENTER")
+        elif hasattr(self, "top"):
+            return("TOP")
+        elif hasattr(self, "bottom"):
+            return("BOTTOM")
+        elif hasattr(self, "cellClass"):
+            return("CLASS=" + compose(self.cellClass))
+        elif hasattr(self, "cellStyle"):
+            return("STYLE=" + compose(self.cellStyle))
+        elif hasattr(self, "bgcolor"):
+            return("BGCOLOR=" + compose(self.bgcolor))
+        elif hasattr(self, "width"):
+            return("WIDTH=" + compose(self.width))
+        return("UNRECOGNOZED CELL FORMAT ITEM")
 
     
     @classmethod
     def test(cls):
         parse("|7", cls)
+        parse('class="th"', cls)
 
-    
+
+class CellStyle(List):
+    grammar = contiguous(
+        "style=", attr("cellStyle", QuotedString))     
+
+    def compose(self, parser, attr_of):
+        return("STYLE=" + compose(self.cellStyle))
+
+    @classmethod
+    def test(cls):
+        parse('style="border: none"', cls)    
+
+
+
+class CellClass(List):
+    grammar = contiguous(
+        "class=", attr("cellClass", QuotedString))     
+
+    def compose(self, parser, attr_of):
+        return("CLASS=" + compose(self.cellClass))
+
+    @classmethod
+    def test(cls):
+        parse('class="th"', cls)
+
+
+        
+
+class CellFormatItem(List):
+    grammar = contiguous(
+        optional(omit(whitespace)),
+        [CellStyle, CellClass, CellMoinFormatItem],
+        optional(omit(whitespace)))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        for item in self:
+            out += compose(item)
+        return(out)
+
+    @classmethod
+    def test(cls):
+        CellClass.test()
+        CellStyle.test()
+        CellMoinFormatItem.test()
+
+
+
+class TableCellContent(List):
+    grammar = contiguous(
+        attr("cellContent", maybe_some(Subelement)))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        for item in self.cellContent:
+            out += compose(item)
+        return(out)
+
+    @classmethod
+    def test(cls):
+        Subelement.test()
+        parse("", cls)
+        parse("This is plain text", cls)
+        parse("This is plain text too ", cls)
+        parse("This is. plain? text too? Well, no. ", cls)
+        parse("<<div>>", cls)
+
 
 
 class TableCell(List):
     grammar = contiguous(
         optional(
             "<",
-            attr("rowFormat",
-                 maybe_some( [
-                    ("style=", attr("cellStyle", QuotedString)),
-                    ("class=", attr("cellClass", QuotedString))
-                 ])),
-            maybe_some(attr("cellMods", CellMod)),
+            attr("cellFormat", some(CellFormatItem)),
             ">"),
-       
         maybe_some(" "),
-        attr("cellContent", maybe_some(Subelement)),
+        attr("cellContent", maybe_some(Subelement)), #TableCellContent),
         maybe_some(" "),
         "||")
 
@@ -1163,26 +1302,34 @@ class TableCell(List):
         Compose a cell.
 
         It's up to the table/tablerow to make sure the leading || is already
-        in place.  Each cell is responsible for it's trailing ||.
+        in place.  Each cell is responsible for its trailing ||.
         """
 
         # start simple; TODO
         try:
-            out = " "
+            out = compose(self.cellFormat)
+        except AttributeError:
+            out = ""
+
+        try:
             for item in self.cellContent:
                 out += compose(item)
-            return(out + "|")
         except AttributeError:
-            return("")
+            pass
+        return(out + " |")
 
      
     @classmethod
     def test(cls):
-        CellMod.test()
-        parse("<|5> Text ||", cls)
+        CellFormatItem.test()
+        TableCellContent.test()
+        parse('Topic||', cls)
+        parse('<|5> Topic/Event ||', cls)
         parse(" ||", cls)
-        parse(" Electric boogaloo||", cls)
-        print(compose(parse('Topic/Event ||', cls)))
+        parse("<|5> Text ||", cls)
+        parse("<|2> Electric boogaloo ||", cls)
+        parse(" Electric boogaloo ||", cls)
+        parse(' Topic/Event ||', cls)
 
 
 class RowStyle(List):
@@ -1214,7 +1361,7 @@ class RowClass(List):
 class RowFormatItem(List):
     grammar = contiguous(
         optional(omit(whitespace)),
-        [RowStyle, RowClass, CellMod],
+        [RowStyle, RowClass, CellMoinFormatItem],
         optional(omit(whitespace)))
 
     def compose(self, parser, attr_of):
@@ -1227,7 +1374,7 @@ class RowFormatItem(List):
     def test(cls):
         RowClass.test()
         RowStyle.test()
-        CellMod.test()
+        CellMoinFormatItem.test()
         
 class TableRow(List):
     """
@@ -1242,7 +1389,12 @@ class TableRow(List):
             "<",
             attr("rowFormat", some(RowFormatItem)),
             ">"),
-        attr("rowCells", some(TableCell)),
+        maybe_some(" "),
+        attr("firstCellContent", attr("cellContent", maybe_some(Subelement))),
+#TableCellContent),
+        maybe_some(" "),
+        "||",
+        attr("rowCells", maybe_some(TableCell)),
         "\n"
         )
     
@@ -1252,8 +1404,10 @@ class TableRow(List):
         """
         # Start simple; TODO
         out = ""
+        if hasattr(self, "rowFormat"):
+            out += compose(self.rowFormat)
+        out += compose(self.firstCellContent) + " |"
         for cell in self.rowCells:
-            print("YES2", cell)
             out += compose(cell)
         return(out + "\n")
 
@@ -1265,14 +1419,22 @@ class TableRow(List):
         """
         RowFormatItem.test()
         TableCell.test()
-        parse('|| ||\n', cls)
+        parse('|| a ||\n', cls)
         parse('||<|2> ||\n', cls)
         parse('||<|7 rowclass="th"> ||\n', cls)
         parse("||<|5> Text ||\n", cls)
         parse("|| Electric boogaloo||\n", cls)
-        print(compose(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n', cls)))
+        parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n', cls)
+        parse("""|| <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||\n""", cls)
+        parse("""|| ||<<div(right)>>[[http://bit.ly/gxytrnGUGGO|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>> <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||\n""", cls)
+        parse("""||<class="th"> September 21-25 || || <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||\n""", cls)
+        parse("""||<class="th"> September 21-25 || ''[[http://workflow4metabolomics.org/training/W4Mcourse2015|Traitement des données métabolomiques sous Galaxy]]'' ||<<Include(Events/Badges/Europe)>> Station Biologique de Roscoff, France ||<<div(right)>>[[http://bit.ly/gxytrnGUGGO|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>> <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||\n""", cls)
+        parse("""||<class="th"> September 28 || ''[[http://www.emgs-us.org/AM2015/agendamon.asp|Mutational Analysis with Random DNA Identifiers (MARDI), a High-Fidelity NGS Approach That Simultaneously Identifies Gene Marker Mutations from Heterogeneous Mutant Cell Populations]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://www.emgs-us.org/AM2015/index.asp|Environmental Mutagenesis and Genomics Society (EMGS)]], New Orleans, Louisiana, United States || Javier Revollo ||\n""", cls)
+        parse("""||<class="th"> September 21-23 || [[https://www.regonline.com/builder/site/Default.aspx?EventID=1692764|JHU-DaSH: Data Science Hackathon]] ||<<Include(Events/Badges/NorthAmerica)>> [[https://www.regonline.com/builder/site/tab2.aspx?EventID=1692764|Baltimore]], Maryland, United States || <<MailTo(jhuDaSH@jhu.edu, Email)>> ||\n""", cls)
 
 
+
+        
 class Table(List):
     """
     There is no explicit table start or end text in MoinMoin.  A table starts
@@ -1286,7 +1448,6 @@ class Table(List):
         """
         out = ""
         for row in self.tableRows:
-            print("YES", row)
             out += compose(row)
         return(out)
         
@@ -1296,8 +1457,17 @@ class Table(List):
         Test different instances of what this should and should not recognize
         """
         TableRow.test()
-        printList(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls))
-
+        parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls)
+        parse("""||<class="th"> September 21-23 || [[https://www.regonline.com/builder/site/Default.aspx?EventID=1692764|JHU-DaSH: Data Science Hackathon]] ||<<Include(Events/Badges/NorthAmerica)>> [[https://www.regonline.com/builder/site/tab2.aspx?EventID=1692764|Baltimore]], Maryland, United States || <<MailTo(jhuDaSH@jhu.edu, Email)>> ||
+||<class="th"> September 21-25 || ''[[http://workflow4metabolomics.org/training/W4Mcourse2015|Traitement des données métabolomiques sous Galaxy]]'' ||<<Include(Events/Badges/Europe)>> Station Biologique de Roscoff, France ||<<div(right)>>[[http://bit.ly/gxytrnGUGGO|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>> <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||
+||<class="th"> September 28 || ''[[http://www.emgs-us.org/AM2015/agendamon.asp|Mutational Analysis with Random DNA Identifiers (MARDI), a High-Fidelity NGS Approach That Simultaneously Identifies Gene Marker Mutations from Heterogeneous Mutant Cell Populations]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://www.emgs-us.org/AM2015/index.asp|Environmental Mutagenesis and Genomics Society (EMGS)]], New Orleans, Louisiana, United States || Javier Revollo ||\n""", cls)        
+        parse("""||<class="th"> September 17-18 || '''[[News/ToolsCollectionsHack|Remote Hackathon for Tools and Dataset Collections]]''' || <<Include(Events/Badges/World)>> ''Online'' || <<MailTo(galaxy-iuc@lists.galaxyproject.org, IUC)>> ||
+||<class="th"> September 17-18 || ''Utilizing the Galaxy Analysis Framework at Core Facilities'' || <<Include(Events/Badges/NorthAmerica)>> [[http://wacd.abrf.org/|Western Association of Core Directors (WACD) Annual Meeting]], Portland, Oregon, United States || [[DaveClements|Dave Clements]] ||
+||<class="th"> September 21-23 || [[https://www.regonline.com/builder/site/Default.aspx?EventID=1692764|JHU-DaSH: Data Science Hackathon]] ||<<Include(Events/Badges/NorthAmerica)>> [[https://www.regonline.com/builder/site/tab2.aspx?EventID=1692764|Baltimore]], Maryland, United States || <<MailTo(jhuDaSH@jhu.edu, Email)>> ||
+||<class="th"> September 21-25 || ''[[http://workflow4metabolomics.org/training/W4Mcourse2015|Traitement des données métabolomiques sous Galaxy]]'' ||<<Include(Events/Badges/Europe)>> Station Biologique de Roscoff, France ||<<div(right)>>[[http://bit.ly/gxytrnGUGGO|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>> <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||
+||<class="th"> September 28 || ''[[http://www.emgs-us.org/AM2015/agendamon.asp|Mutational Analysis with Random DNA Identifiers (MARDI), a High-Fidelity NGS Approach That Simultaneously Identifies Gene Marker Mutations from Heterogeneous Mutant Cell Populations]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://www.emgs-us.org/AM2015/index.asp|Environmental Mutagenesis and Genomics Society (EMGS)]], New Orleans, Louisiana, United States || Javier Revollo ||
+||<class="th"> September 28-30 || ''[[http://biosb.nl/events/course-next-generation-sequencing-ngs-data-analysis-2015/|Next generation sequencing (NGS) data analysis]]'' ||<<Include(Events/Badges/Europe)>> [[http://www.medgencentre.nl/|University Medical Centre Groningen]], The Netherlands ||<<Include(Teach/GTN/Badge16)>>  <<MailTo(education@biosb.nl, BioSB Education)>> ||
+""", cls)
         
 
 # ================
@@ -1357,11 +1527,11 @@ class Element(List):
         """
         Test different instances of what this should and should not recognize
         """
+        Table.test()
         SectionHeader.test()
         BulletList.test()
         NumberedList.test()
         Macro.test()
-        Table.test()
         CodeBlockStart.test()
         CodeBlockEnd.test()
         Comment.test()
@@ -1707,17 +1877,4 @@ class CategoryLinks(List):
     They are WikiWordLinks that start with the word "Category".
     """
 
-
-    
-class DoublePipe:
-    """
-    A double pipe can start a table row, end a table row, or separate table columns.
-    """
-    grammar = "||"
-    
-class Table:
-    """
-    Tables are a series of consecutive rows with each line starting and ending with double
-    pipes ||.
-    """
 
