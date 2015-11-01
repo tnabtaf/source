@@ -1264,28 +1264,6 @@ class CellFormatItem(List):
         CellMoinFormatItem.test()
 
 
-
-class TableCellContent(List):
-    grammar = contiguous(
-        attr("cellContent", maybe_some(Subelement)))
-
-    def compose(self, parser, attr_of):
-        out = ""
-        for item in self.cellContent:
-            out += compose(item)
-        return(out)
-
-    @classmethod
-    def test(cls):
-        Subelement.test()
-        parse("", cls)
-        parse("This is plain text", cls)
-        parse("This is plain text too ", cls)
-        parse("This is. plain? text too? Well, no. ", cls)
-        parse("<<div>>", cls)
-
-
-
 class TableCell(List):
     grammar = contiguous(
         optional(
@@ -1293,7 +1271,7 @@ class TableCell(List):
             attr("cellFormat", some(CellFormatItem)),
             ">"),
         maybe_some(" "),
-        attr("cellContent", maybe_some(Subelement)), #TableCellContent),
+        attr("cellContent", maybe_some(Subelement)), 
         maybe_some(" "),
         "||")
 
@@ -1322,7 +1300,6 @@ class TableCell(List):
     @classmethod
     def test(cls):
         CellFormatItem.test()
-        TableCellContent.test()
         parse('Topic||', cls)
         parse('<|5> Topic/Event ||', cls)
         parse(" ||", cls)
@@ -1391,7 +1368,6 @@ class TableRow(List):
             ">"),
         maybe_some(" "),
         attr("firstCellContent", attr("cellContent", maybe_some(Subelement))),
-#TableCellContent),
         maybe_some(" "),
         "||",
         attr("rowCells", maybe_some(TableCell)),
