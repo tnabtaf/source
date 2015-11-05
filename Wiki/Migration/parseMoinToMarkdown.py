@@ -381,7 +381,7 @@ class Monospace(List):
     """
     grammar = contiguous(
         re.compile(r"{{{|\`"),
-        attr("monoText", re.compile(r".*(?=}}}|\`)")),
+        attr("monoText", re.compile(r".*?(?=}}}|\`)")),
         re.compile(r"}}}|\`"))
         
     def compose(self, parser, attr_of):
@@ -618,12 +618,14 @@ class TitleDiv(List):
         return("""<div class="title">""")
 
 
+        
 class SpecialDiv(List):
     """
     Anything parsed by this requires something other than just generating a
     div tag.
     """
     grammar = contiguous(TitleDiv)
+
 
 class OtherDiv(List):
     """
@@ -669,6 +671,7 @@ class DivMacro(List):
         """
         parse("div(center)", cls)
         parse("div", cls)
+        parse("div(indent)", cls)
 
 
 class TOCMacro(List):
@@ -694,6 +697,7 @@ class TOCMacro(List):
             pass
         return(out)
 
+
     @classmethod
     def test(cls):
         """
@@ -701,6 +705,7 @@ class TOCMacro(List):
         """
         parse("TableOfContents", cls)
         parse("TableOfContents(2)", cls)
+
 
 
 class BRMacro(List):
@@ -822,6 +827,7 @@ class Macro(List):
         BRMacro.test()
         parse("<<div>>", cls)
         parse("<<div(center)>>", cls)
+        parse("<<div(indent)>>", cls)
         parse("<<Include(FrontPage/Use Galaxy)>>", cls)
         parse("<<Include(Develop/LinkBox)>>", cls)
         parse(r'<<Include(/Includes, , from="= LA T =\n", to="\nEN_CL")>>', cls)
@@ -1619,12 +1625,12 @@ class TableRow(List):
     
         This is only invoked where the table can be generated using Markdown.
         """
-        firstCellText = ""
+        firstCellText = "| "
         for item in self.firstCellContent:
             firstCellText += compose(item)
         out = firstCellText + "| "
         if self.rowIsHeader():
-            headerOut = "-" * (len(firstCellText)-1) + " | "
+            headerOut = "| " + "-" * (len(firstCellText)-3) + " | "
 
         for cell in self.rowCells:
             cellText = " "
@@ -1632,7 +1638,7 @@ class TableRow(List):
                 cellText += compose(item)
             out += cellText + " | "
             if self.rowIsHeader():
-                headerOut = "-" * (len(cellText)-1) + " | "
+                headerOut += "-" * (len(cellText)-1) + " | "
         
         out += "\n"
         if self.rowIsHeader():
@@ -1726,9 +1732,9 @@ class Table(List):
 
         What can be rendered in GFM:
          - same number of cells in every row (no rowspans or colspans)
-         - can have a header row, or not
+         - must have a header row
          - Cells without any markdown
-        That's it.
+        If the table meets all those criteria it can be rendered in GFM.
          
         Q: Why not just render everying in HTML?  The whole point of a wiki
         is to make it easy to edit.  GFM table notation is way easier than
@@ -1737,10 +1743,14 @@ class Table(List):
 
         # Walk though each row looking for markup we can't deal with        
         rowIdx = 0
+        firstRowIsHeader = False
         for row in self.tableRows:
             if hasattr(row, "rowClass"):
-                # only first row can have class and must be header
-                if (not row.rowIsHeader()) or rowIdx > 0:
+                # if first row is not a header, or if a row other than
+                # the first one has a class then it must be rendered in HTML
+                if row.rowIsHeader() and rowIdx == 0:
+                    firstRowIsHeader = True
+                else:
                     return True           # needs to be in HTML
 
             if hasattr(row, "rowStyle") or hasattr(row, "firstCellFormat"):
@@ -1761,7 +1771,10 @@ class Table(List):
             
             rowIdx += 1
 
-        return(False)                     # Does not require HTML
+        if firstRowIsHeader:
+            return(False)
+
+        return(True)                     # Does not require HTML
 
 
     def composeCellHtml(self, row, cellClass, cellFormat, cellContent):
