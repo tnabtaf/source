@@ -461,11 +461,12 @@ class CodeBlockEnd(List):
 # PagePath - defined here instead of in Links b/c of dependencies
 # -------------
 
-class InternalPagePath(str):
+class InternalPagePath(List):
     """
     path to an internal page.  Can be absolute or relative.
 
     Internal pages can match on fewer characters than external pages
+    in the page part of the path.  The anchor part can contain much more.
     Used when we know we have a page name.
 
     Allowable characters for general URLs are
@@ -478,7 +479,22 @@ class InternalPagePath(str):
     in any combination
     See http://stackoverflow.com/questions/1856785/characters-allowed-in-a-url
     """
-    grammar = contiguous(re.compile(r"[\w\-\.~:/?#@!\$&'\*+;= %]+"))
+    #grammar = contiguous(re.compile(r"[\w\-\.~:/?#@!\$&'\*+;= %]+"))
+    grammar = contiguous(
+        optional(attr("pagePart", re.compile(r"[\w\-\.~:/?@!\$&'\*+;= %]+"))),
+        optional("#",
+                 attr("anchorPart", re.compile(r".+?(?=]]|\||$)"))))
+
+    def compose(self, parser, attr_of):
+        out = ""
+        if hasattr(self, "pagePart"):
+            out += self.pagePart
+        if hasattr(self, "anchorPart"):
+            # TODO: figure out what else GitHub's internal conversion of
+            # anchors does
+            out += "#" + re.sub(r" ", "-", self.anchorPart)
+        return(out)
+    
 
 
     @classmethod
@@ -489,6 +505,7 @@ class InternalPagePath(str):
         parse("FrontPage/Use Galaxy", cls)
         parse("FrontPage/Use Galaxy#This Part of the page", cls)
         parse("/Includes", cls)
+        parse("Teach/Trainers#LUMC, ErasmusMC, DTL Learning Programme", cls)
 
 
 class ExternalPagePath(str):
@@ -593,9 +610,9 @@ class IncludeMacro(List):
         Override compose method to generate Markdown.
         """
         if self.params:
-            return("INCLUDE(" + self.pagePath + self.params + ")")
+            return("INCLUDE(" + compose(self.pagePath) + self.params + ")")
         else:
-            return("INCLUDE(" + self.pagePath + ")")
+            return("INCLUDE(" + compose(self.pagePath) + ")")
 
     @classmethod
     def test(cls):
@@ -1002,14 +1019,13 @@ class InternalLink(List):
                    compose(self.path) + "</a>")
         return(out)
 
-
-
         
     @classmethod
     def test(cls):
         """
         Test different instances of what this should and should not recognize
         """
+        InternalPagePath.test()
         parse("[[/PathToPage]]", cls)
         parse("[[path/file.txt]]", cls)
         parse("[[path/more/path/Page Name]]", cls)
@@ -1063,7 +1079,7 @@ class ImageLink(List):
         except AttributeError:
             pass
         
-        out += self.linkPath + "'>"
+        out += compose(self.linkPath) + "'>"
         out += "<img src='" + compose(self.imagePath) + "'"
         
         # Add alt text
