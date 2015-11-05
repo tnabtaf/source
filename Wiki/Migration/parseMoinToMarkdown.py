@@ -1192,9 +1192,9 @@ class CellMoinFormatItem(List):
         TODO
         """
         if hasattr(self, "colspan"):
-            return("COLSPAN=" + compose(self.colspan))
+            return("COLSPAN=" + self.colspan)
         elif hasattr(self, "rowspan"):
-            return("ROWSPAN=" + compose(self.rowspan))
+            return("ROWSPAN=" + self.rowspan)
         elif hasattr(self, "left"):
             return("LEFT")
         elif hasattr(self, "right"):
@@ -1205,8 +1205,6 @@ class CellMoinFormatItem(List):
             return("TOP")
         elif hasattr(self, "bottom"):
             return("BOTTOM")
-        elif hasattr(self, "cellClass"):
-            return("CLASS=" + compose(self.cellClass))
         elif hasattr(self, "cellStyle"):
             return("STYLE=" + compose(self.cellStyle))
         elif hasattr(self, "bgcolor"):
@@ -1226,9 +1224,9 @@ class CellMoinFormatItem(List):
         Assumes you are inside a td or th already.
         """
         if hasattr(self, "colspan"):
-            return("colspan=" + compose(self.colspan), False)
+            return("colspan=" + self.colspan, False)
         elif hasattr(self, "rowspan"):
-            return("rowspan=" + compose(self.rowspan), False)
+            return("rowspan=" + self.rowspan, False)
         elif hasattr(self, "left"):
             return('text-align: left;', True)
         elif hasattr(self, "right"):
@@ -1240,7 +1238,7 @@ class CellMoinFormatItem(List):
         elif hasattr(self, "bottom"):
             return("vertical-align: bottom;", True)
         elif hasattr(self, "cellStyle"):
-            return(self.cellStyle.quotedText, True)
+            return(self.cellStyle.justTheString(), True)
         elif hasattr(self, "bgcolor"):
             return("background-color: " + self.bgcolor.justTheString() + ";",
                    True)
@@ -1254,6 +1252,7 @@ class CellMoinFormatItem(List):
     def test(cls):
         parse("|7", cls)
         parse("-5", cls)
+        
         parse("(", cls)
         parse(")", cls)
         parse(":", cls)
@@ -1290,7 +1289,7 @@ class TableCell(List):
         optional(
             "<",
             some([attr("cellClass", CellClass),
-                  attr("cellFormat", some(CellMoinFormatItem))]),
+                  attr("cellFormat", some([CellMoinFormatItem, omit(" ")]))]),
             ">"),
         maybe_some(" "),
         attr("cellContent", maybe_some(Subelement)), 
@@ -1307,7 +1306,9 @@ class TableCell(List):
 
         # start simple; TODO
         try:
-            out = compose(self.cellFormat)
+            out = ""
+            for item in self.cellFormat:
+                out += compose(item)
         except AttributeError:
             out = ""
 
@@ -1324,8 +1325,13 @@ class TableCell(List):
         CellClass.test()
         CellMoinFormatItem.test()
         Subelement.test()
+        
+        parse('<-3> ||', cls)
+        parse('< style="background-color: #eef"> ||', cls)
+        parse('<-3 style="background-color: #eef"> ||', cls)
+
         parse('Topic||', cls)
-        parse('<|5> Topic/Event ||', cls)
+        parse('<|5 -2> Topic/Event ||', cls)
         parse(" ||", cls)
         parse("<|5> Text ||", cls)
         parse("<|2> Electric boogaloo ||", cls)
@@ -1363,10 +1369,6 @@ class RowClass(List):
         
     @classmethod
     def test(cls):
-        print("IN ROWCLASS TEST")
-        print(parse('rowclass="th"', cls))
-        printList(parse('rowclass="th"', cls))
-        print(compose(parse('rowclass="th"', cls)))
         parse('rowclass="th"', cls)
         parse('rowclass="spangled"', cls)
 
@@ -1386,9 +1388,9 @@ class TableRow(List):
             some([attr("rowStyle", RowStyle),
                   attr("rowClass", RowClass),
                   attr("firstCellClass", CellClass),
-                  attr("firstCellFormat", some(CellMoinFormatItem)),
+                  attr("firstCellFormat", some([CellMoinFormatItem, omit(" ")])),
                   " "]),
-            ">"),           
+            ">"),
         maybe_some(" "),
         attr("firstCellContent", maybe_some(Subelement)),
         maybe_some(" "),
@@ -1402,13 +1404,12 @@ class TableRow(List):
     
         This is only invoked where the table can be generated using Markdown.
         """
-        firstCellText = " "
+        firstCellText = ""
         for item in self.firstCellContent:
             firstCellText += compose(item)
-        print("FIRST CELL TEXT", firstCellText)
-        out = firstCellText + " | "
+        out = firstCellText + "| "
         if self.rowIsHeader():
-            headerOut = "-" * len(firstCellText) + " | "
+            headerOut = "-" * (len(firstCellText)-1) + " | "
 
         for cell in self.rowCells:
             cellText = " "
@@ -1416,7 +1417,7 @@ class TableRow(List):
                 cellText += compose(item)
             out += cellText + " | "
             if self.rowIsHeader():
-                headerOut = "-" * len(cellText) + " | "
+                headerOut = "-" * (len(cellText)-1) + " | "
         
         out += "\n"
         if self.rowIsHeader():
@@ -1432,7 +1433,7 @@ class TableRow(List):
         if hasattr(self, "rowClass") and self.rowClass.isHeader():
             return(True)                   # is header at row level.
             
-        elif hasattr(self, "firstCellClass") and self.firsCellClass.isHeader():
+        elif hasattr(self, "firstCellClass") and self.firstCellClass.isHeader():
             # or, every cell might be indivudaully specified as th.
             for cell in self.rowCells:
                 if hasattr(cell, "cellClass") and cell.cellClass.isHeader():
@@ -1464,7 +1465,8 @@ class TableRow(List):
         CellMoinFormatItem.test()
         Subelement.test()
         TableCell.test()
-        parse('||<rowclass="th"> Date ||\n', cls)
+        parse('||<class="th"> ||<-3 style="background-color: #eef"> ||\n', cls)
+        parse('||<rowclass="th"> Date||\n', cls)
         parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n', cls)
         parse('|| a ||\n', cls)
         parse('||<|2> ||\n', cls)
@@ -1546,7 +1548,44 @@ class Table(List):
 
         return(False)                     # Does not require HTML
 
+
+    def composeCellHtml(self, row, cellClass, cellFormat, cellContent):
+        """
+        compose a cell in HTML.
+
+        This routine exists because first cell of a row is problematic.
+        """
         
+        # render first cell
+        cellType = "td"
+        cellStyle = ""
+        cellAttribs = ""
+
+        if row.rowIsHeader() or (cellClass != None and cellClass.isHeader()):
+            cellType = "th"
+        if cellClass != None and not cellClass.isHeader():
+            cellStyle += " class=" + cellClass.quotedText + " "
+        if cellFormat != None:
+            for formatItem in cellFormat:
+                formatText, inStyle = formatItem.composeHtml()
+                if inStyle:
+                    cellStyle += " " + formatText
+                else:
+                    cellAttribs += " " + formatText
+
+        if cellStyle:
+            cellStyle = ' style="' + cellStyle + '"'
+
+        cellContentText = ""
+        for item in cellContent:
+            cellContentText += compose(item)
+        cellHtml = (
+            "    <" + cellType + cellAttribs + cellStyle + "> " +
+            cellContentText + "</" + cellType + ">\n")
+        return(cellHtml)
+
+
+                
     def composeHtml(self):
         """
         Table contains markup that cannot be rendered in GFM.
@@ -1554,9 +1593,8 @@ class Table(List):
         out = "<table>\n"
 
         for row in self.tableRows:
+            # generate the row header
             rowHtml = "  <tr"
-            firstCellStyle = ''
-            firstCellHtml = ""
             if hasattr(row, "rowClass"):
                 rowHtml += " class=" + row.rowClass.rowClass.quotedText + " "
             if hasattr(row, "rowStyle"):
@@ -1565,64 +1603,25 @@ class Table(List):
             out += rowHtml
             
             # render first cell
-            cellType = "td"
-            cellStyle = ""
-            cellAttribs = ""
+            cellClass = None
             if hasattr(row, "firstCellClass"):
-                if row.firstCellClass.isHeader():
-                    cellType = "th"
-                else:
-                    cellStyle += " class=" + row.firstCellClass.quotedText + " "
+                cellClass = row.firstCellClass
+            cellFormat = None
             if hasattr(row, "firstCellFormat"):
-                for formatItem in row.firstCellFormat:
-                    formatText, inStyle = formatItem.composeHtml()
-                    if inStyle:
-                        cellStyle += " " + formatText
-                    else:
-                        cellAttribs += " " + formatText
-
-            if cellStyle:
-                cellStyle = ' style="' + cellStyle + '"'
+                cellFormat = row.firstCellFormat
+            out += self.composeCellHtml(row, cellClass, cellFormat,
+                                        row.firstCellContent)
             
-            cellContentText = ""
-            for item in row.firstCellContent:
-                cellContentText += compose(item)
-            cellHtml = (
-                "    <" + cellType + cellAttribs + cellStyle + "> " +
-                cellContentText + "</" + cellType + ">\n")
-            
-            out += cellHtml
-            
-            # render the rest of the cells        
+            # render the rest of the cells
             for cell in row.rowCells:
-                cellType = "td"
-                cellStyle = ""
-                cellAttribs = ""
-                if hasattr(row, "cellClass"):
-                    if row.cellClass.isHeader():
-                        cellType = "th"
-                    else:
-                        cellStyle += " class=" + row.cellClass.quotedText + " "
-                if hasattr(row, "cellFormat"):
-                    for formatItem in row.cellFormat:
-                        formatText, inStyle = formatItem.composeHtml()
-                        if inStyle:
-                            cellStyle += " " + formatText
-                        else:
-                            cellAttribs += " " + formatText
-
-                if cellStyle:
-                    cellStyle = ' style="' + cellStyle + '"'
-                
-                cellContentText = ""
-                for item in cell.cellContent:
-                    cellContentText += compose(item)
-
-                cellHtml = (
-                    "    <" + cellType +
-                    cellAttribs + cellStyle + '> ' +
-                    cellContentText + "</" + cellType + ">\n")
-                out += cellHtml
+                cellClass = None
+                if hasattr(cell, "cellClass"):
+                    cellClass = cell.cellClass
+                cellFormat = None
+                if hasattr(cell, "cellFormat"):
+                    cellFormat = cell.cellFormat
+                out += self.composeCellHtml(row, cellClass, cellFormat,
+                                            cell.cellContent)
 
             # Render the end of the row
             out += "  </tr>\n"
@@ -1640,21 +1639,11 @@ class Table(List):
         Test different instances of what this should and should not recognize
         """
         TableRow.test()
-        print(parse('||<rowclass="th" width="7em">Date ||\n', cls))
-        printList(parse('||<rowclass="th" width="7em">Date ||\n', cls))
-        print(compose(parse('||<rowclass="th" width="7em">Date ||\n', cls)))
+        parse('||<rowclass="th"> Date ||\n', cls)
+
+        parse('||<rowclass="th" width="7em">Date ||\n', cls)
 
         parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls)
-
-        print ("===== print(parse()) ====")
-        print(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls))
-        print ("===== printList(parse() ====")
-        printList(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls))
-        print ("===== print(compose(parse())) ====")
-        print(compose(parse('||<rowclass="th" width="7em">Date ||Topic/Event ||Venue/Location ||Contact ||\n||<class="th"> September 14-18 || ''[[http://training.bioinformatics.ucdavis.edu/2015/01/13/using-galaxy-for-analysis-of-high-throughput-sequence-data-september-14-18-2015/|Using Galaxy for Analysis of High Throughput Sequence Data]]'' ||<<Include(Events/Badges/NorthAmerica)>> [[http://bioinformatics.ucdavis.edu/|UC Davis Bioinformatics Core]], Davis, California, United States ||<<div(right)>>[[http://bit.ly/gxytrnUCDavis|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>>  ||\n', cls)))
-
-
-
         
         parse("""||<class="th"> September 21-23 || [[https://www.regonline.com/builder/site/Default.aspx?EventID=1692764|JHU-DaSH: Data Science Hackathon]] ||<<Include(Events/Badges/NorthAmerica)>> [[https://www.regonline.com/builder/site/tab2.aspx?EventID=1692764|Baltimore]], Maryland, United States || <<MailTo(jhuDaSH@jhu.edu, Email)>> ||
 ||<class="th"> September 21-25 || ''[[http://workflow4metabolomics.org/training/W4Mcourse2015|Traitement des données métabolomiques sous Galaxy]]'' ||<<Include(Events/Badges/Europe)>> Station Biologique de Roscoff, France ||<<div(right)>>[[http://bit.ly/gxytrnGUGGO|{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}]]<<div>> <<MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)>> ||
