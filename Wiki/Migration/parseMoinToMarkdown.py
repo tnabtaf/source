@@ -720,15 +720,25 @@ class MailToMacro(List):
 
     def compose(self, parser, attr_of):
         """
-        Override compose method to generate Markdown.
+        Can be generated as a link in Markdown
         """
-        out = "MAIL_TO(" + self.emailAddress
-        try:
-            out += ", " + self.toText
-        except AttributeError:
-            pass
-        return(out + ")")
+        out = "[" + self.emailAddress + "]"
+        if hasattr(self, "toText"):
+            out += "(" + self.toText + ")"
+        else:
+            out += "(" + self.emailAddress + ")"
+        return(out)
 
+    def composeHtml(self):
+        out = '<a href="mailto:' + self.emailAddress + '">'
+        if hasattr(self, "toText"):
+            out += self.toText
+        else:
+            out += self.emailAddress
+        out += "</a>"
+        return(out)
+
+        
     @classmethod
     def test(cls):
         """
@@ -768,9 +778,11 @@ class Macro(List):
         For cases when the subelement needs to be rendered in HTML (such as
         inside a table).
         """
-        # default to same markup as used in Markdown.  I think these are all
-        # special cases.
-        return(compose(self.macro))
+        # for most macros, default to same markup as used in Markdown.
+        if isinstance(self.macro, MailToMacro):
+            return(self.macro.composeHtml())
+        else:
+            return(compose(self.macro))
 
     @classmethod
     def test(cls):
@@ -1880,8 +1892,6 @@ class Element(List):
         """
         Override compose method to generate Markdown.
         """
-        if self[0] is whitespace:
-            return(self[0])
         return(compose(self[0]))
 
     @classmethod
