@@ -372,7 +372,33 @@ class CodeBlockEnd(List):
         parse("}}}", cls)
 
         
+class Monospace(List):
+    """
+    Monospace is used to detect inline text that should be monospace.
 
+    Can occur anywhwere that plain text can, and in Moin, markup inside monospace
+    is rendered as plain text.
+    """
+    grammar = contiguous(
+        re.compile(r"{{{|\`"),
+        attr("monoText", re.compile(r".*(?=}}}|\`)")),
+        re.compile(r"}}}|\`"))
+        
+    def compose(self, parser, attr_of):
+        return("`" + self.monoText + "`")
+
+
+    def composeHtml(self):
+        return("<code>" + self.monoText + "</code>")
+
+                
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("{{{this is it!}}}", cls)
+        parse("`this is it!`", cls)
 
         
 
@@ -394,7 +420,10 @@ class CodeBlockStart(List):
         """
         Override compose method to generate Markdown.
         """
-        return("\n```" + self.format)
+        out = "\n```"
+        if hasattr(self, "format"):
+            out += self.format
+        return(out)
         
     @classmethod
     def test(cls):
@@ -1119,7 +1148,8 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, Bold, Italic, FontSizeChangeStart, FontSizeChangeEnd,
+        [Macro, Link, Bold, Italic, Monospace,
+         FontSizeChangeStart, FontSizeChangeEnd,
          InlineComment, PlainText, Punctuation])
 
     
@@ -1154,6 +1184,7 @@ class Subelement(List):
         PlainText.test()
         Bold.test()
         Italic.test()
+        Monospace.test()
         FontSizeChangeStart.test()
         FontSizeChangeEnd.test()
         InlineComment.test()
