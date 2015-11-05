@@ -303,6 +303,79 @@ class Italic(List):
 
 
 
+class FontSizeChangeStart(List):
+    """
+    ~+ increases the font size, ~- decreases it
+
+    Note: When viewing this in Github, the font doesn't actually change size,
+    even though the HTML is correct.
+    """
+    grammar = contiguous("~", attr("direction", re.compile("\+|\-")))
+
+    def compose(self, parser, attr_of):
+        if self.direction == "+":
+            newSize = "larger"
+        else:
+            newSize = "smaller"
+        return('<span style="font-size: ' + newSize + ';">')
+        
+    def composeHtml(self):
+        return(compose(self))
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("~+", cls)
+        parse("~-", cls)
+
+
+class FontSizeChangeEnd(List):
+    """
+    +~ / -~ finishes a change in font size
+    """
+    grammar = contiguous(re.compile("\+|\-"), "~")
+
+    def compose(self, parser, attr_of):
+        return('</span>')
+        
+    def composeHtml(self):
+        return(compose(self))
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("+~", cls)
+        parse("-~", cls)
+
+        
+class CodeBlockEnd(List):
+    """
+    }}} ends a code block.
+    """
+    grammar = contiguous("}}}")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("```\n")
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("}}}", cls)
+
+        
+
+
+        
+
 class CodeBlockStart(List):
     """
     {{{ starts a code block.
@@ -814,10 +887,10 @@ class ExternalLink(List):
         linkOut = compose(self.protocol) + compose(self.path)
         # Try with link text first
         try:
-            out = "<a href=" + linkOut + ">" + self.linkText + "</a>"
+            out = "<a href='" + linkOut + "'>" + self.linkText + "</a>"
         except AttributeError:
             # err on the safe side
-            out = "<a href=" + linkOut + ">" + linkOut + "</a>"
+            out = "<a href='" + linkOut + "'>" + linkOut + "</a>"
         return(out)
 
 
@@ -875,10 +948,10 @@ class InternalLink(List):
     def composeHtml(self):
         # Try with link text first
         try:
-            out = "<a href=" + compose(self.path) + ">" + self.linkText + "</a>"
+            out = "<a href='" + compose(self.path) + "'>" + self.linkText + "</a>"
         except AttributeError:
             # err on the safe side
-            out = ("<a href=" + compose(self.path) + ">" +
+            out = ("<a href='" + compose(self.path) + "'>" +
                    compose(self.path) + "</a>")
         return(out)
 
@@ -1034,8 +1107,8 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, Bold, Italic, InlineComment,
-         PlainText, Punctuation])
+        [Macro, Link, Bold, Italic, FontSizeChangeStart, FontSizeChangeEnd,
+         InlineComment, PlainText, Punctuation])
 
     
     def compose(self, parser, attr_of):
@@ -1066,10 +1139,11 @@ class Subelement(List):
         """
         Link.test()
         Macro.test()
-        QuotedString.test()
         PlainText.test()
         Bold.test()
         Italic.test()
+        FontSizeChangeStart.test()
+        FontSizeChangeEnd.test()
         InlineComment.test()
         Punctuation.test()
 
@@ -1798,7 +1872,7 @@ class Element(List):
     """
     grammar = contiguous(
         [SectionHeader, BulletList, NumberedList, Table, Macro,
-         CodeBlockStart, CodeBlockEnd,
+         CodeBlockStart, CodeBlockEnd, FontSizeChangeStart, FontSizeChangeEnd,
          Comment, Paragraph, TrailingWhitespace])
 
 
