@@ -1036,6 +1036,80 @@ class InternalLink(List):
 
 
 
+class Image(List):
+    """
+    Images are shown with
+
+      {{attachment:Images/Search.png|Search|width="120"}}
+      {{attachment:Images/Search.png||width="120"}}
+      {{attachment:Images/Search.png|Search|}}
+      {{attachment:Images/Search.png|Search}}
+      {{attachment:Images/Search.png}}
+
+    Many images include sizing, and that is not supported in Markdown.
+    """
+    grammar = contiguous(
+        "{{attachment:",
+        attr("imagePath", InternalPagePath),
+        optional(
+            "|",
+            optional(attr("altText", re.compile(r"[^}|]*"))),
+            optional(
+                "|",
+                attr("imageSize", re.compile(r"[^\}]*")))),
+        "}}")
+
+    def compose(self, parser, attr_of):
+        """
+        Use Markdown image notation
+        """
+        out = "!["
+        if hasattr(self, "altText"):
+            out += self.altText
+        out += "](" + compose(self.imagePath) + ")"
+                    
+        return(out)
+
+        
+    def composeHtml(self):
+        # Generate HTML img link as it can deal with sizes
+        out = "<img src='" + compose(self.imagePath) + "'"
+        
+        # Add alt text
+        if hasattr(self, "altText"):
+            out += " alt='" + self.altText + "'"
+
+        if hasattr(self, "imageSize"):
+            out += " " + self.imageSize
+        out += " />"
+                    
+        return(out)
+
+
+    def needsHtmlRendering(self):
+        """
+        Returns true if image needs HTML rendering.
+        """
+        if hasattr(self, "imageSize"):
+            return(True)
+        return(False)
+
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}', cls)
+        parse('{{attachment:GetGalaxySearch.png}}', cls)
+        parse('{{attachment:Im/L/GGS.png|S all}}', cls)
+        parse('{{attachment:Is/L/G.png|s a|width="120"}}', cls)
+        parse('{{attachment:Images/Logos/w4m_logo_small.png|Traitement des données métabolomiques sous Galaxy|height="80"}}', cls)
+        parse('{{attachment:Images/Logos/WACD.png|Western Association of Core Directors (WACD) Annual Meeting|height="70"}}', cls)
+
+
+        
+
 class ImageLink(List):
     """
     Link that shows an image, rather than text.
@@ -1056,16 +1130,8 @@ class ImageLink(List):
         "[[",
         [(attr("protocol", LinkProtocol), attr("linkPath", ExternalPagePath)),
          attr("linkPath", InternalPagePath)],
-        "|{{attachment:",
-        [(attr("imageProtocol", LinkProtocol), attr("imagePath", ExternalPagePath)),
-         attr("imagePath", InternalPagePath)],
-        optional(
-            "|",
-            optional(attr("altText", re.compile(r"[^}|]*"))),
-            optional(
-                "|",
-                attr("imageSize", re.compile(r"[^\}]*")))),
-        "}}",
+        "|",
+        attr("image", Image),
         "]]")
 
     def compose(self, parser, attr_of):
@@ -1080,22 +1146,13 @@ class ImageLink(List):
             pass
         
         out += compose(self.linkPath) + "'>"
-        out += "<img src='" + compose(self.imagePath) + "'"
-        
-        # Add alt text
-        try:
-            out += " alt='" + self.altText + "'" + compose(self.link) + ")"
-        except AttributeError:
-            pass
-        # other stuff at the end
-        try:
-            out += " " + self.imageSize
-        except AttributeError:
-            pass
-        out += " /></a>"
+        out += self.image.composeHtml()
+        # TODO: figure out when imageLinks can be in GFM.
+        out += "</a>"
                     
         return(out)
-
+            
+        
         
     def composeHtml(self):
         """
@@ -1103,11 +1160,14 @@ class ImageLink(List):
         """
         return(compose(self))
 
+
+
     @classmethod
     def test(cls):
         """
         Test different instances of what this should and should not recognize
         """
+        Image.test()
         parse('[[search/getgalaxy|{{attachment:GetGalaxySearch.png}}]]', cls)
         parse('[[http://gp.org/sch/getxy|{{attachment:Im/L/GGS.png|S all}}]]',
               cls)
@@ -1170,7 +1230,7 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, Bold, Italic, Monospace,
+        [Macro, Link, Image, Bold, Italic, Monospace,
          FontSizeChangeStart, FontSizeChangeEnd,
          InlineComment, PlainText, Punctuation])
 
@@ -1202,6 +1262,7 @@ class Subelement(List):
         Test different instances of what this should and should not recognize
         """
         Link.test()
+        Image.test()
         Macro.test()
         PlainText.test()
         Bold.test()
