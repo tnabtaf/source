@@ -93,7 +93,7 @@ class LeadingSpaces(List):
         keep track of the indents.
         TODO
         """
-        return(" " * self.depth)          # punt.
+        return(" " * int(self.depth))          # punt.
 
     @classmethod
     def trackIndent(cls, item, depthStack):
@@ -401,26 +401,6 @@ class FontSizeChangeEnd(List):
         parse("-~", cls)
 
         
-class CodeBlockEnd(List):
-    """
-    }}} ends a code block.
-    """
-    grammar = contiguous("}}}")
-
-    def compose(self, parser, attr_of):
-        """
-        Override compose method to generate Markdown.
-        """
-        return("```\n")
-        
-    @classmethod
-    def test(cls):
-        """
-        Test different instances of what this should and should not recognize
-        """
-        parse("}}}", cls)
-
-        
 class Monospace(List):
     """
     Monospace is used to detect inline text that should be monospace.
@@ -469,7 +449,7 @@ class CodeBlockStart(List):
         """
         Override compose method to generate Markdown.
         """
-        out = "\n```"
+        out = "```"
         if hasattr(self, "format"):
             out += self.format
         return(out)
@@ -1279,7 +1259,8 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [Macro, Link, Image, Bold, Italic, Monospace,
+        [LeadingSpaces, Macro, Link, Image, Bold, Italic, Monospace,
+         CodeBlockStart, CodeBlockEnd,
          FontSizeChangeStart, FontSizeChangeEnd,
          InlineComment, PlainText, Punctuation])
 
@@ -1327,117 +1308,30 @@ class Subelement(List):
 # Lists
 # ===========
 
-class BulletListItem(List):
+class MoinListItem(List):
     """
-    An individual entry in a bullet list.
-
-    Look like
-     * Text here.
-
-    But, can't get pypeg's whitespace to work, so grammar drops spaces.
-    That's a problem as we need to know depth.
-    """
-    grammar = contiguous(
-        attr("depth", LeadingSpaces),
-        attr("bullet", re.compile(r"\*")),
-        re.compile(r" +"),
-        attr("item", some(Subelement)),
-        re.compile(r" *"),
-        "\n"
-        )
-
-
-    def compose(self, parser, attr_of):
-        """
-        Override compose method to generate Markdown.
-        """
-        out = " " * BulletList.indentLevel + "* "
-        for subelement in self.item:
-            out += compose(subelement)
-        out += "\n"
-        return(out)
-
-    @classmethod
-    def test(cls):
-        """
-        Test different instances of what this should and should not recognize
-        """
-        parse("@INDENT-1@* E\n", cls)
-        parse("@INDENT-1@* Electric boogaloo\n", cls)
-        parse("@INDENT-1@* A simple case.\n", cls)
-        parse("@INDENT-1@* A simple case \n", cls)
-
-
-class BulletList(List):
-    """
-    Look like
-     * Text goes here
-     * More text here
-    """
-    grammar = contiguous(some(BulletListItem))
-    indentLevel = 0
-    
-    def compose(self, parser, attr_of):
-        """
-        Override compose method to generate Markdown.
-        """
-        # in moin this level or anything less than this is top level list.
-        # This block of code can be turned into a reusable routine, provided
-        # self is a list of things that have depth
-        depths = [int(self[0].depth.depth)] 
-        out = ""
-        for item in self:
-            BulletList.indentLevel = LeadingSpaces.trackIndent(item, depths)
-            out += compose(item)
-        return(out)
-        
-    @classmethod
-    def test(cls):
-        """
-        Test different instances of what this should and should not recognize
-        """
-        BulletListItem.test()
-        parse("@INDENT-1@* One Item Only\n", cls)
-        parse("@INDENT-1@* A simple case.\n@INDENT-1@* With two items\n", cls)
-        parse("""@INDENT-1@* A simple case.
-@INDENT-3@* With nested item
-""", cls)
-        parse("""@INDENT-1@* A simpler case.
-@INDENT-3@* With nested item
-@INDENT-3@* and another
-""", cls)
-        parse("""@INDENT-1@* A less simplerer case.
-@INDENT-3@* With nested item
-@INDENT-3@* And another
-@INDENT-5@* and More!
-@INDENT-3@* Uh huh.
-""", cls)
-
-
-
-class NumberedListItem(List):
-    """
-    An individual entry in a numbered list.
+    An individual entry in a numbered or bulleted list.
 
     Look like
      1. Text here.
-     1. More Here.
-    or
-     1. Item 1
      2. Item 2
+     * Fish heads!
+
+    TODO: figure out how to indent elements that are embedded in lists.
+    Their indention should line up with the item they are under.
+    See Events/GCC2014/TrainingDay/DataManagers for test case.
     """
     grammar = contiguous(
         attr("depth", LeadingSpaces),
-        attr("number", re.compile(r"\d+\.")),
-        re.compile(r" +"),
+        attr("itemMarker", re.compile(r"\d+\.|\*")),
+        optional(re.compile(r" +")),
         attr("item", some(Subelement)),
         re.compile(r" *"),
         "\n"
         )
 
-
     def compose(self, parser, attr_of):
-        out = " " * BulletList.indentLevel + "1. "
+        out = " " * MoinList.indentLevel * 2 + self.itemMarker + " "
         for subelement in self.item:
             out += compose(subelement)
         out += "\n"
@@ -1452,21 +1346,29 @@ class NumberedListItem(List):
         parse("@INDENT-1@2. Electric boogaloo\n", cls)
         parse("@INDENT-1@11. A simple case.\n", cls)
         parse("@INDENT-1@12. A simple case \n", cls)
+        parse("@INDENT-1@* E\n", cls)
+        parse("@INDENT-1@* Electric boogaloo\n", cls)
+        parse("@INDENT-1@* A simple case.\n", cls)
+        parse("@INDENT-1@* A simple case \n", cls)
 
 
-class NumberedList(List):
+class MoinList(List):
     """
-    Look like
+    Look like any combination of this
      1. Text goes here
      1. More text here
-
-    TODO: Deal with depth.
+     * Bullet item!
+       1. Indented numbered item.
+    at varying levels of indent
     """
-    grammar = contiguous(some(NumberedListItem))
+    grammar = contiguous(some(MoinListItem))
+    indentLevel = 0
 
     def compose(self, parser, attr_of):
+        depths = [int(self[0].depth.depth)] 
         out = ""
         for item in self:
+            MoinList.indentLevel = LeadingSpaces.trackIndent(item, depths)
             out += compose(item)
         return(out)
         
@@ -1475,7 +1377,7 @@ class NumberedList(List):
         """
         Test different instances of what this should and should not recognize
         """
-        BulletListItem.test()
+        MoinListItem.test()
         parse("@INDENT-1@1. One Item Only\n", cls)
         parse("@INDENT-1@2. A simple case.\n@INDENT-1@3. With two items\n", cls)
         parse("""@INDENT-1@22. A simple case.
@@ -1491,7 +1393,6 @@ class NumberedList(List):
 @INDENT-5@1. and More!
 @INDENT-3@1. Uh huh.
 """, cls)
-
 
 
 
@@ -2059,7 +1960,7 @@ class Element(List):
     Elements don't have to be at the top level, but they can be.
     """
     grammar = contiguous(
-        [SectionHeader, BulletList, NumberedList, Table, Macro,
+        [SectionHeader, MoinList, Table, Macro,
          CodeBlockStart, CodeBlockEnd, FontSizeChangeStart, FontSizeChangeEnd,
          Comment, Paragraph, TrailingWhitespace])
 
@@ -2077,8 +1978,7 @@ class Element(List):
         """
         Table.test()
         SectionHeader.test()
-        BulletList.test()
-        NumberedList.test()
+        MoinList.test()
         Macro.test()
         CodeBlockStart.test()
         CodeBlockEnd.test()
@@ -2339,7 +2239,7 @@ def runTests():
     Table.test()
     
     ProcessingInstruction.test()
-    BulletList.test()
+    MoinList.test()
     SectionHeader.test()
     PlainText.test()
     Link.test()
@@ -2421,7 +2321,6 @@ if args.args.moinpage:
     # Replace leading spaces on lines  with @INDENT-n@ where n is the
     # number of spaces. PyPeg often strips them, causing havoc with lists.  
     moinText = identifyIndents(moinText)
-    print(moinText)
     
     parsedMoin = parse(moinText, Document)
     if args.args.debug:
