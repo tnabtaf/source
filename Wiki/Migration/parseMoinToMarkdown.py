@@ -96,16 +96,18 @@ class LeadingSpaces(List):
         return(" " * int(self.depth))          # punt.
 
     @classmethod
-    def trackIndent(cls, item, depthStack):
+    def trackIndent(cls, item, depthStack, baseDepth):
         """
         Update the depthStack for the current indented Element.
 
         item: subelement of elment.  Must have a depth attribute
         depthStack: stack of ever increasing depths in current element
+        baseDepth: used with code blocks to insert leading spaces; 0 if not in
+                   a code block
 
         Returns the new indentlevel.
         """
-        itemDepth = int(item.depth.depth)
+        itemDepth = int(item.depth.depth) + baseDepth
         if itemDepth > depthStack[-1]:
             depthStack.append(itemDepth)
         elif itemDepth < depthStack[-1]:
@@ -439,6 +441,7 @@ class CodeBlockStart(List):
     {{{#!highlight ini
     {{{#!csv
     """
+    inCodeBlock = False
     grammar = contiguous(
         "{{{",
         optional("#!",
@@ -449,6 +452,7 @@ class CodeBlockStart(List):
         """
         Override compose method to generate Markdown.
         """
+        CodeBlockStart.inCodeBlock = True
         out = "```"
         if hasattr(self, "format"):
             out += self.format
@@ -474,6 +478,7 @@ class CodeBlockEnd(List):
         """
         Override compose method to generate Markdown.
         """
+        CodeBlockStart.inCodeBlock = False
         return("```\n")
         
     @classmethod
@@ -1317,13 +1322,12 @@ class MoinListItem(List):
      2. Item 2
      * Fish heads!
 
-    TODO: figure out how to indent elements that are embedded in lists.
-    Their indention should line up with the item they are under.
-    See Events/GCC2014/TrainingDay/DataManagers for test case.
     """
+    # itemMarker is optional because this also handles indented, but non
+    # listItems embedded in lists
     grammar = contiguous(
         attr("depth", LeadingSpaces),
-        attr("itemMarker", re.compile(r"\d+\.|\*")),
+        optional(attr("itemMarker", re.compile(r"\d+\.|\*"))),
         optional(re.compile(r" +")),
         attr("item", some(Subelement)),
         re.compile(r" *"),
@@ -1331,7 +1335,17 @@ class MoinListItem(List):
         )
 
     def compose(self, parser, attr_of):
-        out = " " * MoinList.indentLevel * 2 + self.itemMarker + " "
+        """
+        TODO: Not able to deal with embedded code blocks that contain lines
+        without any indent.
+        
+        See Events/GCC2014/TrainingDay/DataManagers for test case.
+        """
+        out = " " * MoinList.indentLevel * 2
+        if hasattr(self, "itemMarker"):
+            out += self.itemMarker + " "
+        else:
+            out += "  "
         for subelement in self.item:
             out += compose(subelement)
         out += "\n"
@@ -1359,18 +1373,29 @@ class MoinList(List):
      1. More text here
      * Bullet item!
        1. Indented numbered item.
+          Sometimes non list items too
+          
     at varying levels of indent
     """
-    grammar = contiguous(some(MoinListItem))
+    grammar = contiguous(
+        re.compile(r"(?=@INDENT-\d+@(\*|\d+\.))"),  # 1st item must be list item
+        attr("listItems", some(MoinListItem)))
     indentLevel = 0
+    indentBase = 0
 
     def compose(self, parser, attr_of):
-        depths = [int(self[0].depth.depth)] 
+        depths = [int(self.listItems[0].depth.depth)] 
         out = ""
-        for item in self:
-            MoinList.indentLevel = LeadingSpaces.trackIndent(item, depths)
+        for item in self.listItems:
+            if CodeBlockStart.inCodeBlock and MoinList.indentBase == 0:
+                MoinList.indentBase = MoinList.indentLevel
+            elif not CodeBlockStart.inCodeBlock and MoinList.indentBase != 0:
+                MoinList.indentBase = 0 # we are out
+            MoinList.indentLevel = LeadingSpaces.trackIndent(
+                item, depths, MoinList.indentBase)
             out += compose(item)
         return(out)
+
         
     @classmethod
     def test(cls):
