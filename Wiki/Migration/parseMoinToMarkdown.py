@@ -1351,7 +1351,6 @@ class BulletListItem(List):
         """
         Override compose method to generate Markdown.
         """
-        print("INDENT LEVEL: ", BulletList.indentLevel)
         out = " " * BulletList.indentLevel + "* "
         for subelement in self.item:
             out += compose(subelement)
@@ -1428,7 +1427,7 @@ class NumberedListItem(List):
      2. Item 2
     """
     grammar = contiguous(
-        attr("depth", re.compile(r" *")),
+        attr("depth", LeadingSpaces),
         attr("number", re.compile(r"\d+\.")),
         re.compile(r" +"),
         attr("item", some(Subelement)),
@@ -1438,7 +1437,7 @@ class NumberedListItem(List):
 
 
     def compose(self, parser, attr_of):
-        out = "1. "
+        out = " " * BulletList.indentLevel + "1. "
         for subelement in self.item:
             out += compose(subelement)
         out += "\n"
@@ -1449,10 +1448,10 @@ class NumberedListItem(List):
         """
         Test different instances of what this should and should not recognize
         """
-        parse(" 1. E\n", cls)
-        parse(" 2. Electric boogaloo\n", cls)
-        parse(" 11. A simple case.\n", cls)
-        parse(" 12. A simple case \n", cls)
+        parse("@INDENT-1@1. E\n", cls)
+        parse("@INDENT-1@2. Electric boogaloo\n", cls)
+        parse("@INDENT-1@11. A simple case.\n", cls)
+        parse("@INDENT-1@12. A simple case \n", cls)
 
 
 class NumberedList(List):
@@ -1477,20 +1476,20 @@ class NumberedList(List):
         Test different instances of what this should and should not recognize
         """
         BulletListItem.test()
-        parse(" 1. One Item Only\n", cls)
-        parse(" 2. A simple case.\n 3. With two items\n", cls)
-        parse(""" 22. A simple case.
-   24. With nested item
+        parse("@INDENT-1@1. One Item Only\n", cls)
+        parse("@INDENT-1@2. A simple case.\n@INDENT-1@3. With two items\n", cls)
+        parse("""@INDENT-1@22. A simple case.
+@INDENT-3@24. With nested item
 """, cls)
-        parse(""" 17. A simpler case.
-   1. With nested item
-   1. and another
+        parse("""@INDENT-1@17. A simpler case.
+@INDENT-3@1. With nested item
+@INDENT-3@1. and another
 """, cls)
-        parse(""" 1. A less simplerer case.
-   1. With nested item
-   1. And another
-     1. and More!
-   1. Uh huh.
+        parse("""@INDENT-1@1. A less simplerer case.
+@INDENT-3@1. With nested item
+@INDENT-3@1. And another
+@INDENT-5@1. and More!
+@INDENT-3@1. Uh huh.
 """, cls)
 
 
