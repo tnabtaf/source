@@ -68,6 +68,55 @@ class Punctuation(List):
         testFail("}}", cls)
 
 
+class LeadingSpaces(List):
+    """
+    Sometimes the number of spaces at the front of a line matter.
+
+    PyPeg, however, just pitches them, so we preprocess the code and encode
+    the number of leading spaces.  This captures that encoding
+    """
+    grammar = contiguous(
+        "@INDENT-",
+        attr("depth", re.compile(r"\d+")),
+        "@")
+
+    
+    def compose(self, parser, attr_of):
+        """
+        Moin treats leading space like an indent command.
+
+        Markdown does not support indenting, unless it's code.
+        What to do?  I don't know.  Can't insert an indent macro here, as
+        there is no tag to look for to know when it's done.
+
+        Most of the time, this won't be called, as the parent entities
+        keep track of the indents.
+        TODO
+        """
+        return(" " * self.depth)          # punt.
+
+    @classmethod
+    def trackIndent(cls, item, depthStack):
+        """
+        Update the depthStack for the current indented Element.
+
+        item: subelement of elment.  Must have a depth attribute
+        depthStack: stack of ever increasing depths in current element
+
+        Returns the new indentlevel.
+        """
+        itemDepth = int(item.depth.depth)
+        if itemDepth > depthStack[-1]:
+            depthStack.append(itemDepth)
+        elif itemDepth < depthStack[-1]:
+            depthStack.pop()
+            while len(depthStack) > 0 and itemDepth < depthStack[-1]:
+                depthStack.pop()
+            if len(depthStack) == 0 or depthStack[-1] < itemDepth:
+                depthStack.append(itemDepth)
+        return(len(depthStack) - 1)       # current indent level
+
+
 class InlineComment(List):
     """
     Moin inline comments either
@@ -1289,7 +1338,7 @@ class BulletListItem(List):
     That's a problem as we need to know depth.
     """
     grammar = contiguous(
-        attr("depth", re.compile(r" *")),
+        attr("depth", LeadingSpaces),
         attr("bullet", re.compile(r"\*")),
         re.compile(r" +"),
         attr("item", some(Subelement)),
@@ -1302,7 +1351,8 @@ class BulletListItem(List):
         """
         Override compose method to generate Markdown.
         """
-        out = "* "
+        print("INDENT LEVEL: ", BulletList.indentLevel)
+        out = " " * BulletList.indentLevel + "* "
         for subelement in self.item:
             out += compose(subelement)
         out += "\n"
@@ -1313,10 +1363,10 @@ class BulletListItem(List):
         """
         Test different instances of what this should and should not recognize
         """
-        parse(" * E\n", cls)
-        parse(" * Electric boogaloo\n", cls)
-        parse(" * A simple case.\n", cls)
-        parse(" * A simple case \n", cls)
+        parse("@INDENT-1@* E\n", cls)
+        parse("@INDENT-1@* Electric boogaloo\n", cls)
+        parse("@INDENT-1@* A simple case.\n", cls)
+        parse("@INDENT-1@* A simple case \n", cls)
 
 
 class BulletList(List):
@@ -1326,13 +1376,19 @@ class BulletList(List):
      * More text here
     """
     grammar = contiguous(some(BulletListItem))
-
+    indentLevel = 0
+    
     def compose(self, parser, attr_of):
         """
         Override compose method to generate Markdown.
         """
+        # in moin this level or anything less than this is top level list.
+        # This block of code can be turned into a reusable routine, provided
+        # self is a list of things that have depth
+        depths = [int(self[0].depth.depth)] 
         out = ""
         for item in self:
+            BulletList.indentLevel = LeadingSpaces.trackIndent(item, depths)
             out += compose(item)
         return(out)
         
@@ -1342,20 +1398,20 @@ class BulletList(List):
         Test different instances of what this should and should not recognize
         """
         BulletListItem.test()
-        parse(" * One Item Only\n", cls)
-        parse(" * A simple case.\n * With two items\n", cls)
-        parse(""" * A simple case.
-   * With nested item
+        parse("@INDENT-1@* One Item Only\n", cls)
+        parse("@INDENT-1@* A simple case.\n@INDENT-1@* With two items\n", cls)
+        parse("""@INDENT-1@* A simple case.
+@INDENT-3@* With nested item
 """, cls)
-        parse(""" * A simpler case.
-   * With nested item
-   * and another
+        parse("""@INDENT-1@* A simpler case.
+@INDENT-3@* With nested item
+@INDENT-3@* and another
 """, cls)
-        parse(""" * A less simplerer case.
-   * With nested item
-   * And another
-     * and More!
-   * Uh huh.
+        parse("""@INDENT-1@* A less simplerer case.
+@INDENT-3@* With nested item
+@INDENT-3@* And another
+@INDENT-5@* and More!
+@INDENT-3@* Uh huh.
 """, cls)
 
 
@@ -2237,6 +2293,20 @@ def testFail(testText, cls):
     return()
 
 
+def insertIndentFlag(match):
+    indent = len(match.group('leading'))
+    return("@INDENT-" + str(indent) + "@") 
+
+def identifyIndents(moinText):
+    """
+    PyPeg strips leading space on lines, complicating our goal of determining
+    depth in lists, and when text should be indented.
+    Resolve this by replacing leading spaces with a unique string that also
+    identifies how much indent there is.
+    """
+    return(re.sub(r"^(?P<leading> +)(?=\S)", insertIndentFlag, moinText,
+                  flags=re.MULTILINE))
+
 def printList(list, indent=0):
     for item in list:
         print("." * indent, item)
@@ -2284,7 +2354,7 @@ def runTests():
     Element.test()
     Document.test()
 
-    text = """
+    text = identifyIndents("""
 <<Include(Develop/LinkBox)>>
 <<Include(Admin/LinkBox)>>
 <<Include(FAQs/LinkBox)>>
@@ -2295,8 +2365,8 @@ This is the '''hub page''' for the section of ''this wiki'' on how to deploy and
 == Deploying ==
 
  * [[CloudMan]]
- * [[/GetGalaxy|Install own Galaxy]]
- * [[CloudMan|Install on the Cloud Infrastructure]]
+   * [[/GetGalaxy|Install own Galaxy]]
+   * [[CloudMan|Install on the Cloud Infrastructure]]
  * [[Admin/Maintenance|Maintaining an Instance]]
  * [[http://deploy.com]]
 
@@ -2312,7 +2382,7 @@ This is the '''hub page''' for the section of ''this wiki'' on how to deploy and
 [[http://galaxyproject.org/search/getgalaxy|Search all Galaxy administration resources]]
 <<div>>
  
-"""
+""")
 
     f = parse(text, Document)
 
@@ -2328,7 +2398,7 @@ This is the '''hub page''' for the section of ''this wiki'' on how to deploy and
         print("\n====\n====\nDEBUG: DOCUMENT UNIT TEST DONE\n====\n====")
 
     return
-        
+
 
 # #########################################
 # MAIN
@@ -2349,6 +2419,11 @@ if args.args.moinpage:
     # Replace the mystery character with a space.
     moinText = re.sub(" ", " ", moinText)
 
+    # Replace leading spaces on lines  with @INDENT-n@ where n is the
+    # number of spaces. PyPeg often strips them, causing havoc with lists.  
+    moinText = identifyIndents(moinText)
+    print(moinText)
+    
     parsedMoin = parse(moinText, Document)
     if args.args.debug:
         print("DEBUG: DOCUMENT in PARSED FORM:")
