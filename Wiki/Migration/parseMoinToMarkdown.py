@@ -290,6 +290,98 @@ class QuotedString(List):
         parse('''"I Can't do this no more!"''', cls)
         parse(r'"= LAPTOP WITH BROWSER ="', cls)
 
+class SuperScriptText(List):
+    """
+    Superscript ^notation^
+
+    Expectation is that this will not span across lines.
+
+    Note, there are no subscripts in Galaxy wiki.
+    """
+    grammar = contiguous(
+        attr("superText",
+             re.compile(r"""\^(?P<supText>.+?)\^""")))
+
+
+    def compose(self, parser, attr_of):
+        """
+        Markdown does not support superscript.
+        """
+        return("<sup>" + self.superText[1:-1] + "</sup>")      # trim the ^
+
+
+    def composeHtml(self):
+        return(compose(self))             # same.
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("^Jump^", cls)
+        parse('''^I Can't do this no more!^''', cls)
+        
+
+class StrikeThroughText(List):
+    """
+    This was --(bad)--.
+
+    Expectation is that this will not span across lines.
+    """
+    grammar = contiguous(
+        attr("strikeThroughText",
+             re.compile(r"""--\(.+?\)--""")))
+
+
+    def compose(self, parser, attr_of):
+        """
+        Markdown supports it!
+        """
+        return("~~" + self.strikeThroughText[3:-3] + "~~")    # trim the --( )--
+
+
+    def composeHtml(self):
+        return("<s>" + self.strikeThroughText[3:-3] + "</s>") # trim the --( )--
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("--(Jump)--", cls)
+        parse('''--( I Can't do this no more! )--''', cls)
+
+                
+class Underline(List):
+    """
+    __ 2 underscores start and end underlines in moinmoin
+    """
+    grammar = contiguous("__")
+    inUnderline = False
+
+    def compose(self, parser, attr_of):
+        """
+        Markdown does not support underline.  
+        """
+        return(self.composeHtml())
+
+    def composeHtml(self):
+        Underline.inUnderline = not Underline.inUnderline
+        if Underline.inUnderline:
+            return("<u>")                 # TODO: figure out what to do here.
+        else:
+            return("</u>")
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("__", cls)
+        parse("__", cls)                  # Turn off inUnderline
+        
+
 
 class Bold(List):
     """
@@ -317,6 +409,7 @@ class Bold(List):
         """
         Test different instances of what this should and should not recognize
         """
+        parse("'''", cls)
         parse("'''", cls)
 
 
@@ -350,6 +443,7 @@ class Italic(List):
         """
         Test different instances of what this should and should not recognize
         """
+        parse("''", cls)
         parse("''", cls)
 
 
@@ -1264,7 +1358,8 @@ class Subelement(List):
     Subelements can also be elements.
     """
     grammar = contiguous(
-        [LeadingSpaces, Macro, Link, Image, Bold, Italic, Monospace,
+        [LeadingSpaces, Macro, Link, Image, SuperScriptText, StrikeThroughText,
+         Underline, Bold, Italic, Monospace,
          CodeBlockStart, CodeBlockEnd,
          FontSizeChangeStart, FontSizeChangeEnd,
          InlineComment, PlainText, Punctuation])
@@ -1300,6 +1395,9 @@ class Subelement(List):
         Image.test()
         Macro.test()
         PlainText.test()
+        SuperScriptText.test()
+        StrikeThroughText.test()
+        Underline.test()
         Bold.test()
         Italic.test()
         Monospace.test()
