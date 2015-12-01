@@ -20,8 +20,8 @@ import urllib2
 import re
 
 HOST = "imap.gmail.com"
-TOOLSHED_SENDER = "galaxy-no-reply@montana.galaxyproject.org"
-
+# TOOLSHED_SENDER = "galaxy-no-reply@montana.galaxyproject.org"  # True until 2015/04/22
+TOOLSHED_SENDER = "galaxy-no-reply@radegast.galaxyproject.org"   # Sender from 2015/04/22 on
 #MSG_PARTS = "(BODY[HEADER.FIELDS (FROM SUBJECT BODY TEXT)])"
 MSG_PARTS = "(BODY.PEEK[HEADER.FIELDS (From Subject)] BODY.PEEK[TEXT])"
 HEADER_PARTS = "(BODY.PEEK[HEADER.FIELDS (From Subject)])"
@@ -129,8 +129,11 @@ class ToolShedRepo:
         # True, False, and None are not python compliant; fix that before eval.
         # looking for patterns like: "deleted": false,
         _tsData = re.sub(r': false', r': False', _tsData)
+        _tsData = re.sub(r', false', r', False', _tsData)
         _tsData = re.sub(r': true', r': True', _tsData)
+        _tsData = re.sub(r', true', r', True', _tsData)
         _tsData = re.sub(r': null', r': None', _tsData)
+        _tsData = re.sub(r', null', r', None', _tsData)
         _tsData = eval(_tsData)
 
         # passe just means we aren't interested.
