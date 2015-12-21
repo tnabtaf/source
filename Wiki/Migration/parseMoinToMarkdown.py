@@ -625,6 +625,7 @@ class InternalPagePath(List):
 
     def compose(self, parser, attr_of):
         out = ""
+        # Handle PagePath first
         if hasattr(self, "pagePart"):
             # invert from Moin to GFM.
             if self.isSubPageLink():
@@ -632,11 +633,16 @@ class InternalPagePath(List):
             elif self.isPageRelativeLink():
                 out += self.pagePart          # keep leading ../
             elif self.isRootRelativeLink():
-                out += "/" + self.pagePart 
+                out += "/" + self.pagePart
+            out += ".md"             # Required when viewing it inside GitHub
+
+        # Now the anchors; GitHub and Moin handle anchor links differently
+        # See https://gist.github.com/asabaylus/3071099
         if hasattr(self, "anchorPart"):
-            # TODO: figure out what else GitHub's internal conversion of
-            # anchors does
-            out += "#" + re.sub(r" ", "-", self.anchorPart)
+            anchor = self.anchorPart.lower()
+            anchor = re.sub('[^\w \-]', '', anchor)   # keep only alphanumerics, spaces, hyphens
+            anchor = re.sub(' ', '-', anchor)
+            out += "#" + anchor
         return(out)
     
 
@@ -1204,6 +1210,7 @@ class InternalLink(List):
         parse("[[path/file.txt|uh-huh!]]", cls)
         parse("[[path/more/path/Page Name|Whitespace test 1]]", cls)
         parse("[[path/more/path/Page Name| Whitespace test 2 ]]", cls)
+        parse("[[FrontPage/Use Galaxy|Use Galaxy]]", cls)
 
 
 
@@ -2430,7 +2437,7 @@ This is the '''hub page''' for the section of ''this wiki'' on how to deploy and
 == Deploying ==
 
  * [[CloudMan]]
-   * [[/GetGalaxy|Install own Galaxy]]
+   * [[/GetGalaxy#This is a 23 Link-to|Install own Galaxy]]
    * [[CloudMan|Install on the Cloud Infrastructure]]
  * [[Admin/Maintenance|Maintaining an Instance]]
  * [[http://deploy.com]]
