@@ -593,6 +593,16 @@ class InternalPagePath(List):
     """
     path to an internal page.  Can be absolute or relative.
 
+    Absolute paths don't have any prefix:
+
+      Learn
+      Learn/Screencasts
+
+    Relative paths do.
+
+      /ChildPage
+      ../SiblingPage
+
     Internal pages can match on fewer characters than external pages
     in the page part of the path.  The anchor part can contain much more.
     Used when we know we have a page name.
@@ -616,7 +626,13 @@ class InternalPagePath(List):
     def compose(self, parser, attr_of):
         out = ""
         if hasattr(self, "pagePart"):
-            out += self.pagePart
+            # invert from Moin to GFM.
+            if self.isSubPageLink():
+                out += self.pagePart[1:]      # strip leading /
+            elif self.isPageRelativeLink():
+                out += self.pagePart          # keep leading ../
+            elif self.isRootRelativeLink():
+                out += "/" + self.pagePart 
         if hasattr(self, "anchorPart"):
             # TODO: figure out what else GitHub's internal conversion of
             # anchors does
@@ -624,6 +640,31 @@ class InternalPagePath(List):
         return(out)
     
 
+    def isSubPageLink(self):
+        """
+        Return true if this path is to a subpage.  Subpage links start with / 
+        """
+        if hasattr(self, "pagePart"):
+            return(self.pagePart[0] == "/")
+        return(False)
+        
+    def isPageRelativeLink(self):
+        """
+        Return true if this link uses a relative path to another wiki page.
+        Relative links start with ../
+        """
+        if hasattr(self, "pagePart"):
+            return(self.pagePart[0:3] == "../")
+        return(False)
+        
+    def isRootRelativeLink(self):
+        """
+        Return true if this link uses a path that is relative to the wiki root.
+        Root relative links start with a wiki page name
+        """
+        if hasattr(self, "pagePart") and not self.isSubPageLink() and not self.isPageRelativeLink():
+            return(True)
+        return(False)
 
     @classmethod
     def test(cls):
@@ -633,6 +674,8 @@ class InternalPagePath(List):
         parse("FrontPage/Use Galaxy", cls)
         parse("FrontPage/Use Galaxy#This Part of the page", cls)
         parse("/Includes", cls)
+        parse("../Includes/Something", cls)
+        parse("#Internal to this page", cls)
         parse("Teach/Trainers#LUMC, ErasmusMC, DTL Learning Programme", cls)
 
 
