@@ -1213,7 +1213,140 @@ class InternalLink(List):
         parse("[[FrontPage/Use Galaxy|Use Galaxy]]", cls)
 
 
+class InterWikiMapEntry:
+    """
+    Defines an InterWiki link.
+    """
+    def __init__(self, name, url, count):
+        self.name = name
+        self.url = url
+        self.count = count                # just want to keep track of this somewhere
 
+        return(None)
+
+interWikiMap = {
+    'devthread':
+        InterWikiMapEntry('devthread',
+                          'http://dev.list.galaxyproject.org/', 13),
+    'userthread':
+        InterWikiMapEntry('userthread',
+                          'http://user.list.galaxyproject.org/', 3),
+    'announcethread':
+        InterWikiMapEntry('announcethread',
+                          'http://announce.list.galaxyproject.org/', 0),
+    'francethread':
+        InterWikiMapEntry('francethread',
+                          'http://france.list.galaxyproject.org/', 0),
+    'trello':
+        InterWikiMapEntry('trello',
+                          'https://trello.com/b/75c1kASa/galaxy-development', 0),
+    'toolshedview':
+        InterWikiMapEntry('toolshedview',
+                          'http://toolshed.g2.bx.psu.edu/view/', 0),
+    'src':
+        InterWikiMapEntry('src',
+                          'https://github.com/galaxyproject/galaxy/tree/master/', 57),
+    'srcdoccentral':
+        InterWikiMapEntry('srcdoccentral',
+                          'https://galaxy-central.readthedocs.org/en/latest/', 0),
+    'srcdocdist':
+        InterWikiMapEntry('srcdocdist',
+                          'https://galaxy-dist.readthedocs.org/en/latest/', 0),
+    'gmod':
+        InterWikiMapEntry('gmod',
+                          'http://gmod.org/wiki/', 106),
+    'pmid':
+        InterWikiMapEntry('pmid',
+                          'http://www.ncbi.nlm.nih.gov/pubmed/', 10),
+    'main':
+        InterWikiMapEntry('main',
+                          'https://usegalaxy.org/', 1),
+    'data_libraries':
+        InterWikiMapEntry('data_libraries',
+                          'https://usegalaxy.org/library/', 0),
+    'published_histories':
+        InterWikiMapEntry('published_histories',
+                          'https://usegalaxy.org/history/list_published', 0),
+    'published_workflows':
+        InterWikiMapEntry('published_workflows',
+                          'https://usegalaxy.org/workflow/list_published', 1),
+    'published_visualizations':
+        InterWikiMapEntry('published_visualizations',
+                          'https://usegalaxy.org/visualization/list_published', 0),
+    'published_pages':
+        InterWikiMapEntry('published_pages',
+                          'https://usegalaxy.org/page/list_published', 0),
+    'bbissue':
+        InterWikiMapEntry('bbissue',
+                          'https://bitbucket.org/galaxy/galaxy-central/issue/', 15),
+    'screencast':
+        InterWikiMapEntry('screencast',
+                          'http://screencast.g2.bx.psu.edu/', 88), # TODO
+    'devlistthread':
+        InterWikiMapEntry('devlistthread',
+                          'http://dev.list.galaxyproject.org/', 4)
+    }
+        
+class InterWikiLink(List):
+    """
+    Links that go to a predefined external site.
+
+    Format is:
+
+      [[gmod:GBrowse|GBrowse]]
+
+    Not sure if preserving these as a special kind of link would be worth it,
+    as most of them are not widely used (and many of the current links are out of date.
+    """
+    grammar = contiguous(
+        "[[",
+        maybe_some(whitespace),
+        attr("interWikiName", re.compile(r"[\w]+")),
+        maybe_some(whitespace),
+        ':',
+        maybe_some(whitespace),
+        optional(attr("wikiPage", re.compile(r".+?(?=(\]\])|\|)"))),
+        optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
+        "]]")
+
+    def compose(self, parser, attr_of):
+        global interWikiMap
+        
+        url = interWikiMap[self.interWikiName.lower()].url
+        if hasattr(self, 'wikiPage'):
+            url += self.wikiPage
+        if hasattr(self, 'linkText'):
+            out =  "[" + self.linkText + "](" + url + ")"
+        else:
+            out =  "[" + url + "](" + url + ")"
+        return(out)
+
+
+    def composeHtml(self):
+        global interWikiMap
+        
+        url = interWikiMap[self.interWikiMap.lower()].url
+        if hasattr(self, 'wikiPage'):
+            url += self.wikiPage
+
+        if hasattr(self, 'linkText'):
+            out =  "<a href='" + url + "'>" + self.linkText + "</a>"
+        else:
+            out =  "<a href='" + url + "'>" + url + "</a>"
+        return(out)
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        InternalPagePath.test()
+        parse("[[gmod:GBrowse]]", cls)
+        parse("[[GMOD:Gbrowse/Fish]]", cls)
+        parse("[[bbissue:321|this bb issue]]", cls)
+
+        
 class Image(List):
     """
     Images are shown with
@@ -1363,7 +1496,7 @@ class Link(List):
     images, and some have extra params.
     """
     grammar = contiguous(
-        attr("link", [ImageLink, ExternalLink, InternalLink]))
+        attr("link", [ImageLink, ExternalLink, InterWikiLink, InternalLink]))
 
         
     def compose(self, parser, attr_of):
@@ -1387,6 +1520,7 @@ class Link(List):
         Test different instances of what this should and should not recognize
         """
         ExternalLink.test()
+        InterWikiLink.test()
         InternalLink.test()
         ImageLink.test()
         parse("[[https://developers.google.com/open-source/soc|Google Summer of Code 2015]]", cls)
