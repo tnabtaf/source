@@ -787,7 +787,7 @@ class IncludeMacro(List):
         Override compose method to generate Markdown.
         """
         if self.params:
-            return("INCLUDE(" + compose(self.pagePath) + self.params + ")")
+            return("INCLUDE(" + compose(self.pagePath) + compose(self.params) + ")")
         else:
             return("INCLUDE(" + compose(self.pagePath) + ")")
 
@@ -1105,9 +1105,11 @@ class ExternalLink(List):
     """
     grammar = contiguous(
         "[[",
+        maybe_some(whitespace),
         attr("protocol", LinkProtocol),
         attr("path", ExternalPagePath),
-        optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
+        maybe_some(whitespace),
+        optional("|", maybe_some(whitespace), attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
     def compose(self, parser, attr_of):
@@ -1284,7 +1286,10 @@ interWikiMap = {
                           'http://screencast.g2.bx.psu.edu/', 88), # TODO
     'devlistthread':
         InterWikiMapEntry('devlistthread',
-                          'http://dev.list.galaxyproject.org/', 4)
+                          'http://dev.list.galaxyproject.org/', 4),
+    'moinmoin':                           # comes with moin
+        InterWikiMapEntry('moinmoin',
+                          'http://moinmo.in/', 6)
     }
         
 class InterWikiLink(List):
@@ -1309,30 +1314,56 @@ class InterWikiLink(List):
         optional("|", attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
+
+    def createMailToMacro(self):
+        self.m2m = MailToMacro()
+        self.m2m.emailAddress = self.wikiPage
+        if hasattr(self, "linkText"):
+            self.m2m.toText = self.linkText
+        
+    
     def compose(self, parser, attr_of):
         global interWikiMap
-        
-        url = interWikiMap[self.interWikiName.lower()].url
-        if hasattr(self, 'wikiPage'):
-            url += self.wikiPage
-        if hasattr(self, 'linkText'):
-            out =  "[" + self.linkText + "](" + url + ")"
+
+        if self.interWikiName.lower() == "mailto":
+            # build a MailToMacro object
+            self.createMailToMacro()
+            out = self.m2m.compose(parser, attr_of)
         else:
-            out =  "[" + url + "](" + url + ")"
+            if self.interWikiName.lower() == "attachment":
+                # TODO. Not an interwiki link at all!
+                url = "ATTACHMENT_URL"
+            else:
+                url = interWikiMap[self.interWikiName.lower()].url
+            if hasattr(self, 'wikiPage'):
+                url += self.wikiPage
+            if hasattr(self, 'linkText'):
+                out =  "[" + self.linkText + "](" + url + ")"
+            else:
+                out =  "[" + url + "](" + url + ")"
         return(out)
 
 
     def composeHtml(self):
         global interWikiMap
         
-        url = interWikiMap[self.interWikiMap.lower()].url
-        if hasattr(self, 'wikiPage'):
-            url += self.wikiPage
-
-        if hasattr(self, 'linkText'):
-            out =  "<a href='" + url + "'>" + self.linkText + "</a>"
+        if self.interWikiName.lower() == "mailto":
+            # build a MailToMacro object
+            self.createMailToMacro()
+            out = m2m.composeHtml()
         else:
-            out =  "<a href='" + url + "'>" + url + "</a>"
+            if self.interWikiName.lower() == "attachment":
+                # TODO. Not an interwiki link at all!
+                url = "ATTACHMENT_URL"
+            else:
+                url = interWikiMap[self.interWikiName.lower()].url
+            if hasattr(self, 'wikiPage'):
+                url += self.wikiPage
+
+            if hasattr(self, 'linkText'):
+                out =  "<a href='" + url + "'>" + self.linkText + "</a>"
+            else:
+                out =  "<a href='" + url + "'>" + url + "</a>"
         return(out)
 
         
@@ -1744,7 +1775,7 @@ class CellMoinFormatItem(List):
          ("bgcolor=", attr("bgcolor", QuotedString)), 
          [
              (optional("width="), attr("width", QuotedString)),
-             (attr("width", re.compile(r"\d+(%|em|ex|px|cm|mm|in|pt|pc)")))]
+             (attr("unquotedWidth", re.compile(r"\d+(%|em|ex|px|cm|mm|in|pt|pc)")))]
         ])
 
     def compose(self, parser, attr_of):
@@ -1772,6 +1803,8 @@ class CellMoinFormatItem(List):
             return("BGCOLOR=" + compose(self.bgcolor))
         elif hasattr(self, "width"):
             return("WIDTH=" + compose(self.width))
+        elif hasattr(self, "unquotedWidth"):
+            return("WIDTH=" + self.unquotedWidth)
         return("UNRECOGNOZED CELL FORMAT ITEM")
 
     def composeHtml(self):
@@ -1805,6 +1838,8 @@ class CellMoinFormatItem(List):
                    True)
         elif hasattr(self, "width"):
             return("width: " + self.width.justTheString() + ";", True)
+        elif hasattr(self, "unquotedWidth"):
+            return("width: " + self.unquotedWidth + ";", True)
         return("UNRECOGNOZED CELL FORMAT ITEM for HTML")
 
 
@@ -2465,10 +2500,13 @@ class Argghhs(object):
         argParser = argparse.ArgumentParser(
             description="Convert a single wiki page (a file) from MoinMoin to Github Flavored Markdown. Running this with no params does nothing.  Running with --debug produces a LOT of output. Markdown is sent to stdout.",
             epilog="Example: " + os.path.basename(__file__) +
-            " --moinpage=Admin.moin --debug")
+            " --moinpage=Admin.moin --mdpage=Admin.md --debug")
         argParser.add_argument(
             "--moinpage", required=False, default=None,
             help="File containing a single MoinMoin page.")
+        argParser.add_argument(
+            "--mdpage", required=False, default=None,
+            help="Where to put the resulting markdown page.")
         argParser.add_argument(
             "--runtests", required=False, 
             help="Run Unit Tests.",
@@ -2608,19 +2646,21 @@ This is the '''hub page''' for the section of ''this wiki'' on how to deploy and
 
 # #########################################
 # MAIN
+#
+# Can be run as a standalone program or called from another program.
 # #########################################
 
-args = Argghhs()                          # process command line arguments
-
-if args.args.runtests:
-    runTests()
-
-
-if args.args.moinpage:
-    # Read in whole file at once.
-    moinFile = open(args.args.moinpage, "r")
+def translate(srcFilePath, destFilePath):
+    """
+    Translate a file from MoinMoin markup to GFM.
+    """
+    moinFile = open(srcFilePath, "r")
     moinText = moinFile.read()
     moinFile.close()
+
+    # if it's creole, give it up, as the parsing errors can happen anywhere.
+    if moinText[0:19] == "#format text/creole":
+        raise NotImplementedError("Creole parsing is not supported.")
 
     # Replace the mystery character with a space.
     moinText = re.sub(" ", " ", moinText)
@@ -2630,12 +2670,28 @@ if args.args.moinpage:
     moinText = identifyIndents(moinText)
     
     parsedMoin = parse(moinText, Document)
-    if args.args.debug:
-        print("DEBUG: DOCUMENT in PARSED FORM:")
-        printList(parsedMoin, 2)
-        print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====")
 
-    print(compose(parsedMoin))
+    markdownFile = open(destFilePath, "w")
+    markdownFile.write(compose(parsedMoin))
+    markdownFile.close()
+
+    return(parsedMoin)
+
+    
+if __name__ == "__main__":
+
+    args = Argghhs()                          # process command line arguments
+
+    if args.args.runtests:
+        runTests()
+
+    if args.args.moinpage:
+        parseMoin = translate(args.args.moinpage, args.args.mdpage)
+        if args.args.debug:
+            print("DEBUG: DOCUMENT in PARSED FORM:")
+            printList(parsedMoin, 2)
+            print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====")
+
 
 
     
