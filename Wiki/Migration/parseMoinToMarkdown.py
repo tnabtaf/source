@@ -712,7 +712,7 @@ class ExternalPagePath(str):
     in any combination
     See http://stackoverflow.com/questions/1856785/characters-allowed-in-a-url
     """
-    grammar = contiguous(re.compile(r"[\w\-\.~:/?#@!\$&'\(\)\*+, ;= %]+"))
+    grammar = contiguous(re.compile(r"""[\w\-\.~:/?#@!\$&'\(\)\*+, ;= %"]+"""))
 
     
     @classmethod
@@ -1352,11 +1352,6 @@ class InterWikiLink(List):
                 # TODO. Not an interwiki link at all!
                 url = "ATTACHMENT_URL"
             else:
-                print(self.interWikiName)
-                if hasattr(self, 'wikiPage'):
-                    print(self.wikiPage)
-                if hasattr(self, 'linkText'):
-                    print(self.linkText)
                 url = interWikiMap[self.interWikiName.lower()].url
             if hasattr(self, 'wikiPage'):
                 url += self.wikiPage
@@ -2811,8 +2806,9 @@ def translate(srcFilePath, destFilePath):
     
     parsedMoin = parse(moinText, Document)
 
+    markdownText = compose(parsedMoin)
     markdownFile = open(destFilePath, "w")
-    markdownFile.write(compose(parsedMoin))
+    markdownFile.write(markdownText)
     markdownFile.close()
 
     return(parsedMoin)
