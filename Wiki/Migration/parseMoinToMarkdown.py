@@ -551,6 +551,13 @@ class CodeBlockStart(List):
         if hasattr(self, "format"):
             out += self.format
         return(out)
+
+
+    def composeHtml(self):
+        CodeBlockStart.inCodeBlock = True
+        out = '<span class="codespan">'
+        # IGNORING FORMAT; nothing we can do.
+        return(out)
         
     @classmethod
     def test(cls):
@@ -574,6 +581,12 @@ class CodeBlockEnd(List):
         """
         CodeBlockStart.inCodeBlock = False
         return("```\n")
+        
+    def composeHtml(self):
+        CodeBlockStart.inCodeBlock = False
+        out = '<\span>'
+        return(out)
+
         
     @classmethod
     def test(cls):
@@ -780,7 +793,8 @@ class IncludeMacro(List):
         maybe_some(whitespace),
         attr("pagePath", InternalPagePath),
         maybe_some(whitespace),
-        attr("params", maybe_some(IncludeMacroParameter)), ")")
+        attr("params", maybe_some(IncludeMacroParameter)),
+        ")")
 
     def compose(self, parser, attr_of):
         """
@@ -1080,7 +1094,7 @@ class LinkProtocol(List):
     http, ftp etc.
     """
     grammar = contiguous(
-        attr("protocol", re.compile(r"((http)|(https)|(ftp))\://",
+        attr("protocol", re.compile(r"((http)|(https)|(ftp)|(rtsp))\://",
                                     re.IGNORECASE)))
 
     def compose(self, parser, attr_of):
@@ -1109,7 +1123,8 @@ class ExternalLink(List):
         attr("protocol", LinkProtocol),
         attr("path", ExternalPagePath),
         maybe_some(whitespace),
-        optional("|", maybe_some(whitespace), attr("linkText", re.compile(r".+?(?=\]\])"))),
+        optional("|", maybe_some(whitespace),
+                 attr("linkText", re.compile(r".+?(?=\]\])"))),
         "]]")
 
     def compose(self, parser, attr_of):
@@ -1289,7 +1304,10 @@ interWikiMap = {
                           'http://dev.list.galaxyproject.org/', 4),
     'moinmoin':                           # comes with moin
         InterWikiMapEntry('moinmoin',
-                          'http://moinmo.in/', 6)
+                          'http://moinmo.in/', 6),
+    'wikipedia':                           # comes with moin
+        InterWikiMapEntry('wikipedia',
+                          'https://en.wikipedia.org/wiki/', 1)
     }
         
 class InterWikiLink(List):
@@ -1334,6 +1352,11 @@ class InterWikiLink(List):
                 # TODO. Not an interwiki link at all!
                 url = "ATTACHMENT_URL"
             else:
+                print(self.interWikiName)
+                if hasattr(self, 'wikiPage'):
+                    print(self.wikiPage)
+                if hasattr(self, 'linkText'):
+                    print(self.linkText)
                 url = interWikiMap[self.interWikiName.lower()].url
             if hasattr(self, 'wikiPage'):
                 url += self.wikiPage
@@ -1350,7 +1373,7 @@ class InterWikiLink(List):
         if self.interWikiName.lower() == "mailto":
             # build a MailToMacro object
             self.createMailToMacro()
-            out = m2m.composeHtml()
+            out = self.m2m.composeHtml()
         else:
             if self.interWikiName.lower() == "attachment":
                 # TODO. Not an interwiki link at all!
@@ -1378,9 +1401,9 @@ class InterWikiLink(List):
         parse("[[bbissue:321|this bb issue]]", cls)
 
         
-class Image(List):
+class InternalImage(List):
     """
-    Images are shown with
+    Internal images are shown with
 
       {{attachment:Images/Search.png|Search|width="120"}}
       {{attachment:Images/Search.png||width="120"}}
@@ -1449,6 +1472,123 @@ class Image(List):
         parse('{{attachment:Images/Logos/w4m_logo_small.png|Traitement des données métabolomiques sous Galaxy|height="80"}}', cls)
         parse('{{attachment:Images/Logos/WACD.png|Western Association of Core Directors (WACD) Annual Meeting|height="70"}}', cls)
 
+
+class ExternalImage(List):
+    """
+    External images are shown with
+
+    or
+      {{http://i.imgur.com/aBEEnuL.png?1||width=400}}
+      {{http://i.imgur.com/aBEEnuL.png?1|Pretty pic caption|width=400}}
+
+    Many images include sizing, and that is not supported in Markdown.
+    """
+    grammar = contiguous(
+        "{{",
+        attr("protocol", LinkProtocol),
+        attr("path", ExternalPagePath),
+        optional(
+            "|",
+            optional(attr("altText", re.compile(r"[^}|]*"))),
+            optional(
+                "|",
+                attr("imageSize", re.compile(r"[^\}]*")))),
+        "}}")
+
+    def compose(self, parser, attr_of):
+        """
+        Use Markdown image notation
+        """
+        out = "!["
+        if hasattr(self, "altText"):
+            out += self.altText
+        out += "](" + compose(self.protocol) + compose(self.path) + ")"
+                    
+        return(out)
+
+        
+    def composeHtml(self):
+        # Generate HTML img link as it can deal with sizes
+        out = "<img src='" + compose(self.protocol) + compose(self.path) + "'"
+        
+        # Add alt text
+        if hasattr(self, "altText"):
+            out += " alt='" + self.altText + "'"
+
+        if hasattr(self, "imageSize"):
+            out += " " + self.imageSize
+        out += " />"
+                    
+        return(out)
+
+
+    def needsHtmlRendering(self):
+        """
+        Returns true if image needs HTML rendering.
+        """
+        if hasattr(self, "imageSize"):
+            return(True)
+        return(False)
+
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('{{http://i.imgur.com/aBEEnuL.png?1||width=400}}', cls)
+        parse('{{http://i.imgur.com/aBEEnuL.png?1|Pretty pic caption|width=400}}', cls)
+
+
+class Image(List):
+    """
+    Images are shown with
+
+      {{attachment:Images/Search.png|Search|width="120"}}
+      {{attachment:Images/Search.png||width="120"}}
+      {{attachment:Images/Search.png|Search|}}
+      {{attachment:Images/Search.png|Search}}
+      {{attachment:Images/Search.png}}
+
+    or
+      {{http://i.imgur.com/aBEEnuL.png?1||width=400}}
+
+    Many images include sizing, and that is not supported in Markdown.
+    """
+    grammar = contiguous(
+        attr("image", [InternalImage, ExternalImage]))
+
+    def compose(self, parser, attr_of):
+        out = compose(self.image)
+        return(out)
+
+        
+    def composeHtml(self):
+        # Generate HTML img link as it can deal with sizes
+        out = self.image.composeHtml()                    
+        return(out)
+
+
+    def needsHtmlRendering(self):
+        """
+        Returns true if image needs HTML rendering.
+        """
+        return self.image.needsHtmlRendering()
+
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        ExternalImage.test()
+        InternalImage.test()
+        parse('{{attachment:Images/GalaxyLogos/GTN16.png|Training offered by GTN Member}}', cls)
+        parse('{{attachment:GetGalaxySearch.png}}', cls)
+        parse('{{attachment:Im/L/GGS.png|S all}}', cls)
+        parse('{{attachment:Is/L/G.png|s a|width="120"}}', cls)
+        parse('{{attachment:Images/Logos/w4m_logo_small.png|Traitement des données métabolomiques sous Galaxy|height="80"}}', cls)
+        parse('{{attachment:Images/Logos/WACD.png|Western Association of Core Directors (WACD) Annual Meeting|height="70"}}', cls)
 
         
 
@@ -2170,7 +2310,7 @@ class Table(List):
         if row.rowIsHeader() or (cellClass != None and cellClass.isHeader()):
             cellType = "th"
         if cellClass != None and not cellClass.isHeader():
-            cellStyle += " class=" + cellClass.quotedText + " "
+            cellStyle += " class=" + compose(cellClass.cellClass) + " "
         if cellFormat != None:
             for formatItem in cellFormat:
                 formatText, inStyle = formatItem.composeHtml()
