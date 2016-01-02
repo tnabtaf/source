@@ -34,7 +34,7 @@ class SDPaper(alert.PaperAlert, HTMLParser.HTMLParser):
         self.doi = ""
         self.url = ""
         self.hopkinsUrl = ""
-        self.search = "ScienceDirect: "
+        self.search = ""
         return None
         
     def getFirstAuthorLastName(self):
@@ -62,14 +62,15 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
     Parse HTML email body from ScienceDirect.  The body maybe reporting more
     than one paper.
     """
-    searchStartRe = re.compile(r'Access (the|all \d+) new result[s]*')
+    #searchStartRe = re.compile(r'Access (the|all \d+) new result[s]*')
+    searchStartRe = re.compile(r'(More\.\.\.   )*Access (the|all \d+) new result[s]*')
 
     def __init__(self, email):
 
         HTMLParser.HTMLParser.__init__(self)
 
         self.papers = []
-        self.search = "ScienceDirect: "
+        self.search = ""
         self.currentPaper = None
         
         self.inSearch = False
@@ -87,15 +88,16 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         return None
         
     def handle_data(self, data):
-
         data = data.strip()
-
         startingSearch = SDEmail.searchStartRe.match(data)
         if startingSearch:
             self.inSearch = True
         elif self.inSearch:
-            self.search += data
-            self.inSearch = False
+            if data == '':
+                self.inSearch = False
+            else:
+                data = data.replace('quot;', '"')
+                self.search += data
         elif self.inTitleText:
             self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data) + " "
         elif self.inSource:
@@ -106,7 +108,6 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
         return(None)
             
     def handle_starttag(self, tag, attrs):
-
         if tag == "td" and attrs[0][0] == "class" and attrs[0][1] == "txtcontent":
             """
             Paper has started; next tag is an anchor, and it has paper URL

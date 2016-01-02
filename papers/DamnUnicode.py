@@ -35,6 +35,7 @@ def cauterize(textToCauterize):
     workingText = workingText.replace(u'\u0392', "Beta")
     workingText = workingText.replace(u'\u03B1', "alpha")
     workingText = workingText.replace(u'\u03B2', "beta")
+    workingText = workingText.replace(u'\u03B4', "delta")
     workingText = workingText.replace(u'\u2010', "-")
     workingText = workingText.replace(u'\u2013', "-")
     workingText = workingText.replace(u'\u2014', "-")
@@ -46,7 +47,7 @@ def cauterize(textToCauterize):
     workingText = workingText.replace(u'\u2022', "*")
     workingText = workingText.replace(u'\u2026', "...")
     workingText = workingText.replace(u'\u2606', "*")
-    
+
     return(workingText)
 
 def cauterizeWithDecode(textToCauterize):

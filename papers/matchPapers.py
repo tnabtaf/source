@@ -137,9 +137,9 @@ class PaperLibrary(object):
                     if not doi:
                         doi = paper.doi
                     elif doi != paper.doi:
-                        print("Papers with same title, don't have same DOIs:")
-                        print("  Title: " + paper.title)
-                        print("  Conflicting DOIs: " + doi + ", " + paper.doi)
+                        print("Papers with same title, don't have same DOIs:<br />")
+                        print("  Title: " + paper.title + "<br />")
+                        print("  Conflicting DOIs: " + doi + ", " + paper.doi + "<br />")
 
     def verifyConsistent1stAuthor(self):
         """
@@ -154,11 +154,11 @@ class PaperLibrary(object):
                     if not author1:
                         author1 = firstAuthorForThisPaper
                     elif author1 != firstAuthorForThisPaper:
-                        print("Papers with same title, don't have same first authors:")
-                        print("  Title: " + paper.title)
-                        print("  Conflicting authors: ")
-                        print(u"    Author A: '" + author1 + u"'")
-                        print(u"    Author B: '" + firstAuthorForThisPaper + u"'")
+                        print("Papers with same title, don't have same first authors: <br />")
+                        print("  Title: " + paper.title + "<br />")
+                        print("  Conflicting authors: <br />")
+                        print(u"    Author A: '" + author1 + u"' <br />")
+                        print(u"    Author B: '" + firstAuthorForThisPaper + u"' <br />")
 
         
         
