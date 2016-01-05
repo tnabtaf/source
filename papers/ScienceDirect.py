@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about a ScienceDirect reference / Citation
@@ -7,15 +7,14 @@
 import re
 import alert
 import base64
-import HTMLParser
-import DamnUnicode
+import html.parser
 
 SD_SENDER = "salert@prod.sciencedirect.com"
 
 SD_JHU_PII_URL = "http://www.sciencedirect.com.proxy1.library.jhu.edu/science/article/pii/"
 SD_PII_URL = "http://www.sciencedirect.com/science/article/pii/"
 
-class SDPaper(alert.PaperAlert, HTMLParser.HTMLParser):
+class SDPaper(alert.PaperAlert, html.parser.HTMLParser):
     """
     Describe a particular paper being reported by ScienceDirect
     """
@@ -25,7 +24,7 @@ class SDPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
         """
         super(alert.PaperAlert,self).__init__()
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         
         self.title = ""
         self.authors = ""
@@ -55,7 +54,7 @@ class SDPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
 
         
-class SDEmail(alert.Alert, HTMLParser.HTMLParser):
+class SDEmail(alert.Alert, html.parser.HTMLParser):
     """
     All the information in a Science Direct Email alert.
 
@@ -67,7 +66,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
 
     def __init__(self, email):
 
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
         self.papers = []
         self.search = ""
@@ -83,7 +82,7 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
 
         # SD email body content is base64 encoded.  Decode it.
         emailBodyText = base64.standard_b64decode(email.getBodyText())
-        self.feed(emailBodyText) # process the HTML body text.
+        self.feed(str(emailBodyText)) # process the HTML body text.
         
         return None
         
@@ -99,16 +98,16 @@ class SDEmail(alert.Alert, HTMLParser.HTMLParser):
                 data = data.replace('quot;', '"')
                 self.search += data
         elif self.inTitleText:
-            self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data) + " "
+            self.currentPaper.title += data + " "
         elif self.inSource:
             self.currentPaper.source = data
             self.inSource = False
         elif self.inAuthors:
-            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(data)
+            self.currentPaper.authors += data
         return(None)
             
     def handle_starttag(self, tag, attrs):
-        if tag == "td" and attrs[0][0] == "class" and attrs[0][1] == "txtcontent":
+        if tag == "td" and len(attrs) > 0 and attrs[0][0] == "class" and attrs[0][1] == "txtcontent":
             """
             Paper has started; next tag is an anchor, and it has paper URL
             We now have a long URL that points to a public HTML version of

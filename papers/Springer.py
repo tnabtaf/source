@@ -9,7 +9,6 @@
 import quopri                             # quoted-printable encoding
 import re
 import alert
-import HTMLParser
 import DamnUnicode
 
 SPRINGER_JHU_URL = "http://link.springer.com.proxy1.library.jhu.edu/"

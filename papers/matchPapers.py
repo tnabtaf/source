@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Program to compare newly reported publications with a library of pubs.
@@ -13,7 +13,7 @@
 
 import argparse
 import getpass
-import urllib
+import urllib.parse
 import yattag
 
 import CiteULike                          # CiteULike Handling
@@ -299,7 +299,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.urlencode({"q": matchup.title.encode('utf-8')}),
+                             urllib.parse.urlencode({"q": matchup.title.encode('utf-8')}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
@@ -399,7 +399,7 @@ def reportPaper(matchup):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.urlencode({"q": matchup.title.encode('utf-8')}),
+                             urllib.parse.urlencode({"q": matchup.title.encode('utf-8')}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
@@ -415,7 +415,7 @@ def reportPaper(matchup):
                              target="pubmedtitlesearch"):
                         text("Search Pubmed")
 
-    reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
+    reportHtml = yattag.indent(doc.getvalue())
 
     # do some cleanup
     # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
@@ -530,7 +530,15 @@ for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items()
 sortedTitles = sorted(byLowerTitle.keys())
 
 for title in sortedTitles:
-    print(reportPaper(byLowerTitle[title]))
-
+    try:
+        print(reportPaper(byLowerTitle[title]))
+    except (UnicodeEncodeError, UnicodeDecodeError) as err:
+        print("Encode Error.")
+        for c in err.object[err.start:err.end]:
+            print(hex(ord(c)))
+        print("Encoding:", err.encoding)
+        print("Reason:", err.reason)
+        
+            
 
     

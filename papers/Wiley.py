@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about a Wiley Online Library reference / Citation
@@ -6,8 +6,7 @@
 import quopri                             # quoted-printable encoding
 import re
 import alert
-import HTMLParser
-import DamnUnicode
+import html.parser
 
 WILEY_SENDER = "WileyOnlineLibrary@wiley.com"
 
@@ -15,7 +14,7 @@ WILEY_JHU_URL = "http://onlinelibrary.wiley.com.proxy1.library.jhu.edu/"
 WILEY_URL = "http://onlinelibrary.wiley.com/"
 WILEY_URL_LEN = len(WILEY_URL)
 
-class WileyPaper(alert.PaperAlert, HTMLParser.HTMLParser):
+class WileyPaper(alert.PaperAlert, html.parser.HTMLParser):
     """
     Describe a particular paper being reported by Wiley Online Library
     """
@@ -25,7 +24,7 @@ class WileyPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
         """
         super(alert.PaperAlert,self).__init__()
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         
         self.title = ""
         self.authors = ""
@@ -55,7 +54,7 @@ class WileyPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
 
         
-class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
+class WileyEmail(alert.Alert, html.parser.HTMLParser):
     """
     All the information in a Wiley Saved Search Alert.
 
@@ -66,7 +65,7 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
 
     def __init__(self, email):
 
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
         self.papers = []
         self.search = "Wiley Online Library: "
@@ -85,7 +84,7 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
         cleaned =  quopri.decodestring(email.getBodyText())
 
         # It's a Multipart email; just ignore anything outside HTML part.
-        self.feed(cleaned) # process the HTML body text.
+        self.feed(str(cleaned)) # process the HTML body text.
         
         return None
         
@@ -94,16 +93,16 @@ class WileyEmail(alert.Alert, HTMLParser.HTMLParser):
         data = data.strip()
 
         if self.inSearch:
-            self.search += DamnUnicode.cauterizeWithDecode(data)
+            self.search += data
         elif self.inTitle:
-            self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data)
+            self.currentPaper.title += data
         elif self.inJournal:
-            self.currentPaper.source += DamnUnicode.cauterizeWithDecode(data)
+            self.currentPaper.source += data
         elif self.inAuthors:
             # Author string also has date in it:
             # March 2015Pieter-Jan Maenhaut, Hendrik Moens, Veerle Ongenae and Filip De Turck
             # strip off anything looking like a year and before.
-            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(re.split(r"\d{4}", data)[-1])
+            self.currentPaper.authors += re.split(r"\d{4}", data)[-1]
             
         return(None)
             

@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about alert from Google Scholar
@@ -7,19 +7,18 @@
 import re
 import alert
 import quopri                             # Quoted printable encoding
-import HTMLParser
-import urllib
-import DamnUnicode
+import html.parser
+import urllib.parse
 
 GS_SENDER = "scholaralerts-noreply@google.com"
 
-ELLIPSIS_TAIL = "  " + unichr(8230)  #"  &hellip;"
+ELLIPSIS_TAIL = "  " + chr(8230)  #"  &hellip;"
 ELLIPSIS_TAIL_LEN = len(ELLIPSIS_TAIL)
 
 #SD_JHU_PII_URL = "http://www.sciencedirect.com.proxy1.library.jhu.edu/science/article/pii/"
 #SD_PII_URL = "http://www.sciencedirect.com/science/article/pii/"
 
-class GSPaper(alert.PaperAlert, HTMLParser.HTMLParser):
+class GSPaper(alert.PaperAlert, html.parser.HTMLParser):
     """
     Describe a particular paper being reported by Google Scholar
     """
@@ -29,7 +28,7 @@ class GSPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
         """
         super(alert.PaperAlert,self).__init__()
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         
         self.title = ""
         self.titleTruncated = False
@@ -62,7 +61,7 @@ class GSPaper(alert.PaperAlert, HTMLParser.HTMLParser):
         return self.titleTruncated
 
 
-class GSEmail(alert.Alert, HTMLParser.HTMLParser):
+class GSEmail(alert.Alert, html.parser.HTMLParser):
     """
     All the information in a Google Scholar Email alert.
 
@@ -73,7 +72,7 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
     def __init__(self, email):
 
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
         self.papers = []
         self.search = "Google "
@@ -86,7 +85,7 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
         # Google Scholar email body content is Quoted Printable encoded.  Decode it.
         emailBodyText = quopri.decodestring(email.getBodyText()).decode('utf-8').encode('utf-8')
-        self.feed(emailBodyText) # process the HTML body text.
+        self.feed(str(emailBodyText)) # process the HTML body text.
         
         return None
         
@@ -96,17 +95,17 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
 
         startingSearch = GSEmail.searchStartRe.match(data)
         if startingSearch:
-            self.search += DamnUnicode.cauterizeWithDecode(data)
+            self.search += data
             self.inSearch = True
 
         elif self.inSearch:
-            self.search += " " + DamnUnicode.cauterizeWithDecode(data)
+            self.search += " " + data
 
         elif self.inTitleText and data:
             # sometimes we lose space between too parts of title.
             if self.currentPaper.title and self.currentPaper.title[-1] != " ":
                 self.currentPaper.title += " "
-            self.currentPaper.title += DamnUnicode.cauterizeWithDecode(data)
+            self.currentPaper.title += data
             """
             if self.currentPaper.title[- ELLIPSIS_TAIL_LEN:] == ELLIPSIS_TAIL:
                 # clip it, title will be only a partial match.
@@ -115,14 +114,14 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
                 print("Clipped: " + self.currentPaper.title)
             """
             # Fix title, stripping thing yattag can't cope with.
-            self.currentPaper.title = DamnUnicode.cauterizeWithDecode(self.currentPaper.title)
+            self.currentPaper.title = self.currentPaper.title
 
         elif self.inAuthorList and data:
             # Author list may also have source at end
             parts = data.split("- ")
-            self.currentPaper.authors += DamnUnicode.cauterizeWithDecode(parts[0].strip())
+            self.currentPaper.authors += parts[0].strip()
             if len(parts) == 2:
-                self.currentPaper.source = DamnUnicode.cauterizeWithDecode(parts[1])
+                self.currentPaper.source = parts[1]
 
         return(None)
             
@@ -143,11 +142,11 @@ class GSEmail(alert.Alert, HTMLParser.HTMLParser):
                 #print("URL_ARG: " + urlArg)
                 if urlArg[0:2] == "q=":
                     # need to get rid of URL encoding.
-                    self.currentPaper.url = urllib.unquote(urlArg[2:])
+                    self.currentPaper.url = urllib.parse.unquote(urlArg[2:])
                     #print("Q URL Uncoded: " + urllib.unquote(urlArg[2:]))
                     break
                 elif urlArg[0:4] == "url=":
-                    self.currentPaper.url = urllib.unquote(urlArg[4:])
+                    self.currentPaper.url = urllib.parse.unquote(urlArg[4:])
                     #print("URL URL Uncoded: " + urllib.unquote(urlArg[4:]))
                     break
             self.inTitleLink = False

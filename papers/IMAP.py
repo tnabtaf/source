@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Deals with sources of paper / citation info that are email
@@ -7,12 +7,8 @@ import json
 import sys
 import getpass                            #
 import imaplib                            # Email protocol
-import urlparse
 import os.path
 import re
-
-import HTMLParser
-import DamnUnicode
 
 HEADER_PARTS = "(BODY.PEEK[HEADER.FIELDS (From Subject)])"
 BODY_PARTS = "(BODY.PEEK[TEXT])"
@@ -40,7 +36,7 @@ class Email(object):
     # have getBodyText call it, and then unencode body before returning it.
         
     def getBodyText(self):
-        return(unicode(DamnUnicode.cauterizeWithDecode(self.body[0][1])))
+        return(self.body[0][1])
 
 
 class GMailSource(object):

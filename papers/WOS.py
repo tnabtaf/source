@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about a Web of Science reference / Citation
@@ -6,7 +6,7 @@
 
 import re
 import alert
-import HTMLParser
+import html.parser
 
 WOS_SENDER = "noreply@isiknowledge.com"
 
@@ -47,7 +47,7 @@ class WOSPaper(alert.PaperAlert):
 
 
         
-class WOSEmail(alert.Alert, HTMLParser.HTMLParser):
+class WOSEmail(alert.Alert, html.parser.HTMLParser):
     """
     All the information in a Web of Science Email.
 
@@ -60,7 +60,7 @@ class WOSEmail(alert.Alert, HTMLParser.HTMLParser):
     def __init__(self, email):
 
         alert.Alert.__init__(self)
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         
         self.inTitle = False
         self.inTitleValue = False
@@ -69,7 +69,7 @@ class WOSEmail(alert.Alert, HTMLParser.HTMLParser):
         self.inCitedArticleValue = False
         self.inSource = False
 
-        self.feed(email.getBodyText()) # process the HTML body text.
+        self.feed(str(email.getBodyText())) # process the HTML body text.
 
         return None
         

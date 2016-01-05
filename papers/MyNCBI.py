@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about alerts from My NCBI
@@ -7,12 +7,11 @@
 import quopri
 import re
 import alert
-import HTMLParser
-import DamnUnicode
+import html.parser
 
 MYNCBI_SENDER = "efback@mail.nih.gov"
 
-class MyNCBIPaper(alert.PaperAlert, HTMLParser.HTMLParser):
+class MyNCBIPaper(alert.PaperAlert, html.parser.HTMLParser):
     """
     Describe a particular paper being reported by My NCBI alert
     """
@@ -22,7 +21,7 @@ class MyNCBIPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
         """
         super(alert.PaperAlert,self).__init__()
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
         
         self.title = ""
         self.authors = ""
@@ -52,7 +51,7 @@ class MyNCBIPaper(alert.PaperAlert, HTMLParser.HTMLParser):
 
 
         
-class MyNCBIEmail(alert.Alert, HTMLParser.HTMLParser):
+class MyNCBIEmail(alert.Alert, html.parser.HTMLParser):
     """
     All the information in a Science Direct Email alert.
 
@@ -63,7 +62,7 @@ class MyNCBIEmail(alert.Alert, HTMLParser.HTMLParser):
 
     def __init__(self, email):
 
-        HTMLParser.HTMLParser.__init__(self)
+        html.parser.HTMLParser.__init__(self)
 
         self.papers = []
         self.search = "My NCBI: "
@@ -80,7 +79,7 @@ class MyNCBIEmail(alert.Alert, HTMLParser.HTMLParser):
 
         # email from NCBI uses Quoted Printable encoding.  Unencode it.
         cleaned =  quopri.decodestring(email.getBodyText())
-        self.feed(cleaned) # process the HTML body text.
+        self.feed(str(cleaned)) # process the HTML body text.
         
         return None
         
