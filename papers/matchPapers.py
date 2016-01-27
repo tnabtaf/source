@@ -299,7 +299,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.parse.urlencode({"q": matchup.title.encode('utf-8')}),
+                             urllib.parse.urlencode({"q": matchup.title}),
                              target="jhulib"):
                         text("Search Hopkins")
                     
@@ -315,7 +315,7 @@ def createReport(matchupsByLowTitle, sectionTitle):
                              target="pubmedtitlesearch"):
                         text("Search Pubmed")
                         
-    reportHtml = yattag.indent(doc.getvalue().encode('utf-8'))
+    reportHtml = yattag.indent(doc.getvalue())
 
     # do some cleanup
     # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
@@ -399,7 +399,7 @@ def reportPaper(matchup):
                 with tag("li"):
                     with tag("a",
                              href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.parse.urlencode({"q": matchup.title.encode('utf-8')}),
+                             urllib.parse.urlencode({"q": matchup.title}),
                              target="jhulib"):
                         text("Search Hopkins")
                     

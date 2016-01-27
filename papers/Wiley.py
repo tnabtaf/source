@@ -84,7 +84,7 @@ class WileyEmail(alert.Alert, html.parser.HTMLParser):
         cleaned =  quopri.decodestring(email.getBodyText())
 
         # It's a Multipart email; just ignore anything outside HTML part.
-        self.feed(str(cleaned)) # process the HTML body text.
+        self.feed(cleaned.decode('utf-8')) # process the HTML body text.
         
         return None
         

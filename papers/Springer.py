@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Information about Springer references.
@@ -9,7 +9,6 @@
 import quopri                             # quoted-printable encoding
 import re
 import alert
-import DamnUnicode
 
 SPRINGER_JHU_URL = "http://link.springer.com.proxy1.library.jhu.edu/"
 SPRINGER_URL = "http://link.springer.com/"

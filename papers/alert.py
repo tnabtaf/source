@@ -38,7 +38,7 @@ class PaperAlert(object):
         
     def getFirstAuthorLastName(self):
         """
-        Don't assume any consisten way to get this.  This had better be overriden.
+        Don't assume any consistent way to get this.  This had better be overriden.
         """
         return 1/0
 

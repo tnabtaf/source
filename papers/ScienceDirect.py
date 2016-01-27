@@ -82,7 +82,7 @@ class SDEmail(alert.Alert, html.parser.HTMLParser):
 
         # SD email body content is base64 encoded.  Decode it.
         emailBodyText = base64.standard_b64decode(email.getBodyText())
-        self.feed(str(emailBodyText)) # process the HTML body text.
+        self.feed(emailBodyText.decode('utf-8')) # process the HTML body text.
         
         return None
         

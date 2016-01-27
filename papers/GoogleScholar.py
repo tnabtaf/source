@@ -84,8 +84,8 @@ class GSEmail(alert.Alert, html.parser.HTMLParser):
         self.inAuthorList = False
 
         # Google Scholar email body content is Quoted Printable encoded.  Decode it.
-        emailBodyText = quopri.decodestring(email.getBodyText()).decode('utf-8').encode('utf-8')
-        self.feed(str(emailBodyText)) # process the HTML body text.
+        emailBodyText = quopri.decodestring(email.getBodyText())
+        self.feed(emailBodyText.decode('utf-8')) # process the HTML body text.
         
         return None
         

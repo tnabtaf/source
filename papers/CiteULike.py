@@ -1,10 +1,9 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Module to access a CiteULike library.
 
 import json
-import DamnUnicode
 import re
 
 class CiteULikeEntry(object):
@@ -52,7 +51,7 @@ class CiteULikeEntry(object):
     def getFirstAuthorLastName(self):
         authors = self.getAuthors()
         if authors:
-            return(DamnUnicode.cauterize(authors[0].split()[-1]))
+            return(authors[0].split()[-1])
         else:
             return None
 
