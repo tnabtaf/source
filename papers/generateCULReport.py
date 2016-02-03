@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/local/bin/python3
 # -*- coding: utf-8 -*-
 #
 # Generate reports about the Galaxy CiteULike library.
@@ -8,7 +8,6 @@
 
 import argparse
 import titlecase
-import DamnUnicode
 import CiteULike                          # CiteULike Handling
 
 CUL_GROUP_ID = "16008"
@@ -324,11 +323,10 @@ def genMoinJournalReport(fastCulLib):
 
     # spew numbers for each journal
     for journalName in fastCulLib.getJournalsByTotal():
-        cauterizedJournalName = DamnUnicode.cauterize(journalName)
         # Generate link to journal in CUL.
-        culGroupSearch = CUL_GROUP_SEARCH + 'journal:"' + cauterizedJournalName + '"'
+        culGroupSearch = CUL_GROUP_SEARCH + 'journal:"' + journalName + '"'
         report.append("|| ''[[" + culGroupSearch + "|"
-                      + titlecase.titlecase(cauterizedJournalName) +
+                      + titlecase.titlecase(journalName) +
                       "]]'' ||")
         for year in years:
             numPapers = len(fastCulLib.getPapers(journal=journalName, year=year))
