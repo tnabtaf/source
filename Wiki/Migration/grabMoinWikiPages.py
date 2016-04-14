@@ -72,8 +72,15 @@ class MoinPageList (HTMLParser.HTMLParser):
             if (not os.access(pageFilePath, os.F_OK)) or (not self.onlyNew):
                 # get, write page source
                 print pageUrl
-                self.urlOpener.retrieve(pageUrl, pageFilePath)
-
+                try:
+                    self.urlOpener.retrieve(pageUrl, pageFilePath)
+                    
+                except IOError as ioError:
+                    # deal with redirects
+                    if (ioError.args[0] == 'http error' and
+                        ioError.args[1] == 302):
+                        # we've got a redirect
+                        print("... is a redirect")
                 # avoid detection as a bad player
                 time.sleep(SLEEP_INTERVAL)
             
@@ -125,7 +132,7 @@ pageHtml = urllib2.urlopen(args.args.basewikiurl + ALL_PAGES).read()
 
 moinPageList = MoinPageList(pageHtml)
 moinPageList.destDir = args.args.destdir
-moinPageList.sourceFormat = args.args.sourceFormat
+moinPageList.sourceFormat = args.args.sourceformat
 moinPageList.onlyNew = args.args.onlynew
 moinPageList.baseWikiUrl = args.args.basewikiurl
 moinPageList.grabPages()

@@ -53,19 +53,21 @@ class MoinPageList (HTMLParser.HTMLParser):
             self.inPageLink = True
         elif tag == "a" and self.inPageLink: 
             # build a page URL, then get it's Moin source
-            pageUrl = self.baseWikiUrl + attrs[0][1] + GET_SOURCE
-            pageFilePath = self.destDir + '/' + attrs[0][1] + ".moin"
-
+            pageName = attrs[0][1]
+            pageUrl = self.baseWikiUrl + pageName + GET_SOURCE
+            pageFilePath = self.destDir + '/' + pageName + ".moin"
             pageFileDir = os.path.dirname(pageFilePath)
-            if not os.path.exists(pageFileDir):
-                os.makedirs(pageFileDir)
-            if (not os.access(pageFilePath, os.F_OK)) or (not self.onlyNew):
-                # get, write Moin source    
-                print pageUrl
-                self.urlOpener.retrieve(pageUrl, pageFilePath)
 
-                # avoid detection as a bad player
-                time.sleep(SLEEP_INTERVAL)
+            if pageName not in ["/Events/GCC2016", "/Events/GCC2016/Training"]:   # avoid nginx intercepts
+                if not os.path.exists(pageFileDir):
+                    os.makedirs(pageFileDir)
+                if (not os.access(pageFilePath, os.F_OK)) or (not self.onlyNew):
+                    # get, write Moin source    
+                    print pageUrl
+                    self.urlOpener.retrieve(pageUrl, pageFilePath)
+
+                    # avoid detection as a bad player
+                    time.sleep(SLEEP_INTERVAL)
             
         return(None)
 
