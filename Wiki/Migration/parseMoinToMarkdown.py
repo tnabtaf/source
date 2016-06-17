@@ -2822,7 +2822,7 @@ if __name__ == "__main__":
         runTests()
 
     if args.args.moinpage:
-        parseMoin = translate(args.args.moinpage, args.args.mdpage)
+        parsedMoin = translate(args.args.moinpage, args.args.mdpage)
         if args.args.debug:
             print("DEBUG: DOCUMENT in PARSED FORM:")
             printList(parsedMoin, 2)
