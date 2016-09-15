@@ -13,10 +13,10 @@
 
 import argparse
 import getpass
-import urllib.parse
-import yattag
 
 import CiteULike                          # CiteULike Handling
+import Matchup                            # Matchup between newly reported papers and what's in CUL
+import HistoryDB                          # record what was found in this run
 import IMAP                               # Nasty Email handling.
 import WOS                                # web of science
 import ScienceDirect                      # Science Direct reports
@@ -39,33 +39,6 @@ PAPERS_MAILBOX = "Papers"
 # indexes into tuple for each part
 FROM    = 0
 SUBJECT = 1
-
-class Matchup(object):
-    """
-    Pairs titles (and the list of papers with that title) and CUL entries with that title
-    """
-
-    def __init__(self, papers, culEntries):
-
-        self.papers = papers
-        self.culEntries = culEntries          # might be None
-        self.lowerTitle = papers[0].getTitleLower()
-        self.title = papers[0].getTitle()
-        return None
-
-    def debugPrint(self, descrip="", indent=""):
-        print(indent + "DEBUG: Matchup: " + descrip)
-        print(indent + "  lowerTitle: " + self.lowerTitle)
-        print(indent + "  title: " + self.title)
-        print(indent + "  papers: ")
-        for paper in self.papers:
-            paper.debugPrint(indent=indent + "  ")
-        print(indent + "  culEntries: ")
-        if self.culEntries:
-            for culEntry in self.culEntries:
-                culEntry.debugPrint(indent=indent + "  ")
-        print(indent + "  DONE")
-        return(None)
 
             
 class PaperLibrary(object):
@@ -196,6 +169,12 @@ class Argghhs(object):
         argParser.add_argument(
             "--sources", required=True,
             help="Which alert sources to process. Is either 'all' or comma-separated list: sciencedirect,webofscience,myncbi,wiley,googlescholar")
+        argParser.add_argument(
+            "--historyin", required=False,
+            help="Read in history of previous run. Tells you what you've seen before.")
+        argParser.add_argument(
+            "--historyout", required=False,
+            help="Create a history of this run in CSV format as well.")
         self.args = argParser.parse_args()
 
         # split comma separated list of sources
@@ -204,248 +183,7 @@ class Argghhs(object):
         return(None)
 
 
-def getDoiFromPaperList(paperList):
-    """
-    List is assumed to have been pre-verified to have consistent DOIs
-    """
-    for paper in paperList:
-        if paper.doi:
-            return(paper.doi)
-    return(None)
 
-def getDoiUrlFromPaperList(paperList):
-    """
-    List is assumed to have been pre-verified to have consistent DOIs
-    """
-    for paper in paperList:
-        if paper.doiUrl:
-            return(paper.doiUrl)
-    return(None)
-
-def getUrlFromPaperList(paperList):
-    """
-    Extract a URL from paper list.  Favor DOI URLs, and then fallback to others
-    if needed.
-    List is assumed to have been pre-verified to have consistent DOIs
-    """
-    doiUrl = getDoiUrlFromPaperList(paperList)
-    if not doiUrl:  
-        for paper in paperList:
-            if paper.url:
-                return(paper.url)
-
-    return(doiUrl)
-
-def getHopkinsUrlFromPaperList(paperList):
-    """
-    Extract a Hopkins specific URL from paper list.  
-    Not all sources have this.
-    """
-    hopkinsUrl = None
-    doiUrl = getDoiUrlFromPaperList(paperList)
-    if doiUrl:
-        urlParts = doiUrl.split("/")
-        hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
-    else:
-        for paper in paperList:
-            if paper.hopkinsUrl:
-                return(paper.hopkinsUrl)
-            elif Wiley.isWileyUrl(paper.url):
-                # Some wiley comes from other searches.
-                return(Wiley.createHopkinsUrl(paper.url))
-            elif Springer.isSpringerUrl(paper.url):
-                return(Springer.createHopkinsUrl(paper.url))
-            elif paper.url and not hopkinsUrl:
-                urlParts = paper.url.split("/")
-                hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
-    return(hopkinsUrl)
-
-def createReport(matchupsByLowTitle, sectionTitle):
-    """
-    Return an HTML report of what needs to be done.
-    """
-    
-    doc, tag, text = yattag.Doc().tagtext()
-
-    with tag("h2", style="width: 100%; background-color: #eeeeff"):
-        text(sectionTitle)
-
-    for matchup in matchupsByLowTitle.values():
-
-        with tag("h3"):
-            text(matchup.papers[0].title)
-
-        with tag("ol"):
-            for paper in matchup.papers:
-                with tag("li"):
-                    text(paper.search)
-                    with tag("ul"):
-                        with tag("li"):
-                            text(paper.authors)
-                        if paper.doi:
-                            with tag("li"):
-                                with tag("a", href=paper.doiUrl, target="_blank"):
-                                    text(paper.doi)
-                        with tag("li"):
-                            text(paper.source)
-                        with tag("li"):
-                            text(paper.title)
-
-        if matchup.culEntries:
-            for culEntry in matchup.culEntries:
-                with tag("p"):
-                    with tag("a", href=culEntry.getCulUrl()):
-                        text("Paper @ CiteULike")
-        else:
-            with tag("ul"):
-                url = getUrlFromPaperList(matchup.papers)
-                if url:
-                    # Got a url, post it to CiteULike, and link to it.
-                    with tag("li"):
-                        with tag("a", href="http://www.citeulike.org/posturl?url=" + url,
-                                target="citeulike"):
-                            text("Submit to CiteULike")
-                    with tag("li"):
-                        with tag("a", href=url, target="paper"):
-                            text("See paper")
-
-                hopkinsUrl = getHopkinsUrlFromPaperList(matchup.papers)
-                if hopkinsUrl:
-                    with tag("li"):
-                        with tag("a", href=hopkinsUrl, target="paperhopkins"):
-                            text("See paper @ Hopkins")
-                            
-                # Search for it at Hopkins; Google and pubmed too
-                with tag("li"):
-                    with tag("a",
-                             href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.parse.urlencode({"q": matchup.title}),
-                             target="jhulib"):
-                        text("Search Hopkins")
-                    
-                with tag("li"):
-                    with tag("a",
-                             href="https://www.google.com/search?q=" + matchup.title,
-                             target="googletitlesearch"):
-                        text("Search Google")
-                        
-                with tag("li"):
-                    with tag("a",
-                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.title,
-                             target="pubmedtitlesearch"):
-                        text("Search Pubmed")
-                        
-    reportHtml = yattag.indent(doc.getvalue())
-
-    # do some cleanup
-    # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
-    reportHtml = reportHtml.replace("&amp;", "&")   # potentially risky outside of URLs
-    
-    return(reportHtml)
-
-
-def reportPaper(matchup):
-    """
-    Return HTML report for this matchup
-    """
-    if not hasattr(reportPaper, "newCounter"):
-        reportPaper.newCounter = 0  # it doesn't exist yet, so initialize it
-        reportPaper.knownCounter = 0
-    
-    doc, tag, text = yattag.Doc().tagtext()
-
-    newPaper = not matchup.culEntries
-    
-    if newPaper:
-        # reported paper already in CiteULike
-        reportPaper.newCounter += 1
-        bgColor = "#eef"
-        fontColor = "#000"
-        leader = "New (#" + str(reportPaper.newCounter) + "):" 
-        hLevel = "h2"
-    else:
-        # report paper is known
-        reportPaper.knownCounter += 1
-        bgColor = "#ccc"
-        fontColor = "#666" # evil, very
-        leader = "Known (#" + str(reportPaper.knownCounter) + "):" 
-        hLevel = "h3"
-        
-    with tag("div", style="width: 100%; color: " + fontColor + "; background-color: " + bgColor):
-
-        with tag(hLevel):
-            text(leader)
-            with tag("br"):
-                pass
-            text(matchup.papers[0].title)
-    
-        with tag("ol"):
-            for paper in matchup.papers:
-                with tag("li"):
-                    text(paper.search)
-                    with tag("ul"):
-                        with tag("li"):
-                            text(paper.authors)
-                        if paper.doi:
-                            with tag("li"):
-                                with tag("a", href=paper.doiUrl, target="_blank"):
-                                    text(paper.doi)
-                        with tag("li"):
-                            text(paper.source)
-                        with tag("li"):
-                            text(paper.title)
-
-        if not newPaper:
-            for culEntry in matchup.culEntries:
-                with tag("p"):
-                    with tag("a", href=culEntry.getCulUrl()):
-                        text("Paper @ CiteULike")
-        else:
-            with tag("ul"):
-                url = getUrlFromPaperList(matchup.papers)
-                if url:
-                    # Got a url, post it to CiteULike, and link to it.
-                    with tag("li"):
-                        with tag("a", href="http://www.citeulike.org/posturl?url=" + url,
-                                target="citeulike"):
-                            text("Submit to CiteULike")
-                    with tag("li"):
-                        with tag("a", href=url, target="paper"):
-                            text("See paper")
-
-                hopkinsUrl = getHopkinsUrlFromPaperList(matchup.papers)
-                if hopkinsUrl:
-                    with tag("li"):
-                        with tag("a", href=hopkinsUrl, target="paperhopkins"):
-                            text("See paper @ Hopkins")
-                            
-                # Search for it at Hopkins; Google and pubmed too
-                with tag("li"):
-                    with tag("a",
-                             href="https://catalyst.library.jhu.edu/?utf8=%E2%9C%93&search_field=title&" +
-                             urllib.parse.urlencode({"q": matchup.title}),
-                             target="jhulib"):
-                        text("Search Hopkins")
-                    
-                with tag("li"):
-                    with tag("a",
-                             href="https://www.google.com/search?q=" + matchup.title,
-                             target="googletitlesearch"):
-                        text("Search Google")
-                        
-                with tag("li"):
-                    with tag("a",
-                             href="http://www.ncbi.nlm.nih.gov/pubmed/?term=" + matchup.title,
-                             target="pubmedtitlesearch"):
-                        text("Search Pubmed")
-
-    reportHtml = yattag.indent(doc.getvalue())
-
-    # do some cleanup
-    # fix a problem with some Google Scholar URLs.  Google Scholar does not like &amp; in place of &
-    reportHtml = reportHtml.replace("&amp;", "&")   # potentially risky outside of URLs
-    
-    return(reportHtml)
 
 
     
@@ -456,6 +194,12 @@ args = Argghhs()                          # process command line arguments
 
 # create database from CiteULike Library.
 culLib = CiteULike.CiteULikeLibrary(args.args.cullib)
+
+history = None
+
+if args.args.historyin:
+    # read in history of previous run
+    history = HistoryDB.HistoryDB(args.args.historyin)
 
 # Now build a library of newly reported papers.
 papers = PaperLibrary()
@@ -533,29 +277,31 @@ byLowerTitle = {}
 for lowerTitle, papersWithTitle in papers.getAllMatchupsGroupedByTitle().items():
     
     # Match by DOI first, if possible.
-    doi = getDoiFromPaperList(papersWithTitle)
+    doi = Matchup.getDoiFromPaperList(papersWithTitle)
 
     culPaper = culLib.getByDoi(doi)
     if culPaper:                # Can Match by DOI; already have paper
         # print("Matching on DOI")
-        byLowerTitle[lowerTitle] = Matchup(papersWithTitle, [culPaper])
+        byLowerTitle[lowerTitle] = Matchup.Matchup(papersWithTitle, [culPaper])
     else:
         culPapers = culLib.getByTitleLower(lowerTitle)
         if culPapers:           # Matching by Title; already have paper
             # TODO: also check first author, pub?
             # print("Matched by title")
-            byLowerTitle[lowerTitle] = Matchup(papersWithTitle, culPapers)
+            byLowerTitle[lowerTitle] = Matchup.Matchup(papersWithTitle, culPapers)
         else:                      # Appears New
             # print("New paper")
-            byLowerTitle[lowerTitle] = Matchup(papersWithTitle, None)
+            byLowerTitle[lowerTitle] = Matchup.Matchup(papersWithTitle, None)
+
 
 # Get the papers in Lower Title order
 
 sortedTitles = sorted(byLowerTitle.keys())
-
+    
 for title in sortedTitles:
     try:
-        print(reportPaper(byLowerTitle[title]))
+        print(Matchup.reportPaper(byLowerTitle[title], history))
+
     except (UnicodeEncodeError, UnicodeDecodeError) as err:
         print("Encode Error.")
         for c in err.object[err.start:err.end]:
@@ -563,6 +309,8 @@ for title in sortedTitles:
         print("Encoding:", err.encoding)
         print("Reason:", err.reason)
         
+if args.args.historyout:
+    HistoryDB.writeHistory(byLowerTitle, sortedTitles, args.args.historyout)
             
 
     
