@@ -25,6 +25,15 @@ import GoogleScholar
 import MyNCBI
 import Wiley                              # Wileay Online Library Saved Search Alerts
 
+SOURCE_MAPPING = {
+    "sciencedirect": ScienceDirect,
+    "webofscience":  WOS,
+    "springer":      Springer,
+    "googlescholar": GoogleScholar,
+    "myncbi":        MyNCBI,
+    "wiley":         Wiley
+    }
+
 PAPERS_MAILBOX = "Papers"
 
 # indexes into tuple for each part
@@ -184,8 +193,14 @@ class Argghhs(object):
             "--sentbefore", required=False,
             help=("Optional. Only look at email sent before this date." +
                     " Format: DD-Mon-YYYY.  Example: 01-Jan-2015."))
+        argParser.add_argument(
+            "--sources", required=True,
+            help="Which alert sources to process. Is either 'all' or comma-separated list: sciencedirect,webofscience,myncbi,wiley,googlescholar")
         self.args = argParser.parse_args()
 
+        # split comma separated list of sources
+        self.sources = self.args.sources.split(",")
+        
         return(None)
 
 
@@ -227,17 +242,22 @@ def getHopkinsUrlFromPaperList(paperList):
     Not all sources have this.
     """
     hopkinsUrl = None
-    for paper in paperList:
-        if paper.hopkinsUrl:
-            return(paper.hopkinsUrl)
-        elif Wiley.isWileyUrl(paper.url):
-            # Some wiley comes from other searches.
-            return(Wiley.createHopkinsUrl(paper.url))
-        elif Springer.isSpringerUrl(paper.url):
-            return(Springer.createHopkinsUrl(paper.url))
-        elif paper.url and not hopkinsUrl:
-            urlParts = paper.url.split("/")
-            hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
+    doiUrl = getDoiUrlFromPaperList(paperList)
+    if doiUrl:
+        urlParts = doiUrl.split("/")
+        hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
+    else:
+        for paper in paperList:
+            if paper.hopkinsUrl:
+                return(paper.hopkinsUrl)
+            elif Wiley.isWileyUrl(paper.url):
+                # Some wiley comes from other searches.
+                return(Wiley.createHopkinsUrl(paper.url))
+            elif Springer.isSpringerUrl(paper.url):
+                return(Springer.createHopkinsUrl(paper.url))
+            elif paper.url and not hopkinsUrl:
+                urlParts = paper.url.split("/")
+                hopkinsUrl = "/".join(urlParts[0:3]) + ".proxy1.library.jhu.edu/" + "/".join(urlParts[3:])
     return(hopkinsUrl)
 
 def createReport(matchupsByLowTitle, sectionTitle):
@@ -328,6 +348,9 @@ def reportPaper(matchup):
     """
     Return HTML report for this matchup
     """
+    if not hasattr(reportPaper, "newCounter"):
+        reportPaper.newCounter = 0  # it doesn't exist yet, so initialize it
+        reportPaper.knownCounter = 0
     
     doc, tag, text = yattag.Doc().tagtext()
 
@@ -335,16 +358,17 @@ def reportPaper(matchup):
     
     if newPaper:
         # reported paper already in CiteULike
+        reportPaper.newCounter += 1
         bgColor = "#eef"
         fontColor = "#000"
-        leader = "New:"
+        leader = "New (#" + str(reportPaper.newCounter) + "):" 
         hLevel = "h2"
- 
     else:
-        # report paper is new
+        # report paper is known
+        reportPaper.knownCounter += 1
         bgColor = "#ccc"
-        fontColor = "#666"
-        leader = "Known:"
+        fontColor = "#666" # evil, very
+        leader = "Known (#" + str(reportPaper.knownCounter) + "):" 
         hLevel = "h3"
         
     with tag("div", style="width: 100%; color: " + fontColor + "; background-color: " + bgColor):

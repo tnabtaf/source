@@ -56,6 +56,7 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
     """
 
     paperStartRe = re.compile(r'Record \d+ of \d+\.')
+    citedArticleRe = re.compile(r'.*Cited Article:.*')
 
     def __init__(self, email):
 
@@ -68,6 +69,7 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
         self.inCitedArticle = False
         self.inCitedArticleValue = False
         self.inSource = False
+        self.search = "WoS: "
 
         self.feed(str(email.getBodyText())) # process the HTML body text.
 
@@ -75,7 +77,7 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
         
     def handle_data(self, data):
 
-        data = data.strip()
+        data = data.strip().strip(r'\r\n')
         # print("In handle_data: " + data)
         starting = WOSEmail.paperStartRe.match(data)
         if starting:
@@ -90,7 +92,7 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
         elif data == "Authors:":
             self.inAuthors = True
 
-        elif data[0:14] == "Cited Article:":
+        elif WOSEmail.citedArticleRe.match(data):
             self.inCitedArticle = True
             # print("Set inCitedArticle")
             
@@ -102,14 +104,15 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
             
         elif self.inTitleValue:
             self.current.title = data
-            # print("Set Title= " + self.title)
+            # print("Set Title= " + self.current.title)
 
         elif self.inAuthors:
             self.current.authors = data
             self.inAuthors = False
 
         elif self.inCitedArticleValue:
-            self.search += data
+            # need to strip "]]>" from anywhere. Bug in WOS, if punctuation in title.
+            self.search += data.replace("]]>","")
             self.inCitedArticle = False
             self.inCitedArticleValue = False
             # print("Set Search: " + self.search)
@@ -126,9 +129,10 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
             
         elif self.inCitedArticle and tag == "font":
             self.inCitedArticleValue = True
+            # print("Set inCitedArticleValue")
             
         elif self.inSource and tag == "a":
-            self.current.doiUrl = attrs[0][1]
+            self.current.doiUrl = attrs[0][1].lower()
             self.current.doi = self.current.doiUrl[18:]
                 
 
@@ -141,5 +145,6 @@ class WOSEmail(alert.Alert, html.parser.HTMLParser):
             self.inTitle = False
             
         elif self.inCitedArticleValue and tag == "font":
+            # print("Clearing inCitedArticleValue, inCitedArticle")
             self.inCitedArticleValue = False
             self.inCitedArticle = False

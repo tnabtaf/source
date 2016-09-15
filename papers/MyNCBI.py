@@ -9,7 +9,7 @@ import re
 import alert
 import html.parser
 
-MYNCBI_SENDER = "efback@mail.nih.gov"
+MYNCBI_SENDER = "efback@ncbi.nlm.nih.gov1"
 
 class MyNCBIPaper(alert.PaperAlert, html.parser.HTMLParser):
     """
