@@ -236,6 +236,13 @@ class PlainText(List):
         """
         return(compose(self))
 
+    def justTheString(self):
+        """
+        Return just the string.  This is only needed because QuotedString has this method.
+        """
+        return(self.text)
+
+        
     @classmethod
     def test(cls):
         """
@@ -801,9 +808,9 @@ class IncludeMacro(List):
         Override compose method to generate Markdown.
         """
         if self.params:
-            return("INCLUDE(" + compose(self.pagePath) + compose(self.params) + ")")
+            return("PLACEHOLDER_INCLUDE(" + compose(self.pagePath) + compose(self.params) + ")")
         else:
-            return("INCLUDE(" + compose(self.pagePath) + ")")
+            return("PLACEHOLDER_INCLUDE(" + compose(self.pagePath) + ")")
 
     @classmethod
     def test(cls):
@@ -898,12 +905,14 @@ class TOCMacro(List):
         """
         Override compose method to generate Markdown.
         """
-        out = "TABLE_OF_CONTENTS"
-        try:
-            out += "(" + self.maxDepth + ")"
-        except AttributeError:
-            pass
-        return(out)
+        global pageYaml
+
+        # No markdown to generate. It all goes in YAML.
+        # MaxDepth not supported in YAML.
+        
+        pageYaml["autotoc"] = "true"
+        
+        return("")
 
 
     @classmethod
@@ -1372,7 +1381,7 @@ class InterWikiLink(List):
         else:
             if self.interWikiName.lower() == "attachment":
                 # TODO. Not an interwiki link at all!
-                url = "ATTACHMENT_URL"
+                url = "PLACEHOLDER_ATTACHMENT_URL"
             else:
                 url = interWikiMap[self.interWikiName.lower()].url
             if hasattr(self, 'wikiPage'):
@@ -1891,10 +1900,10 @@ class CellMoinFormatItem(List):
       v           aligned to bottom (will append vertical-align: bottom; to style)
       style="border: none"
       bgcolor="#XXXXXX"          - used in 10 places
+      #XXXXXX     bgcolor, used in a few places include Teach/ComputingPlatforms
 
     Not used in Galaxy Wiki:
       tablewidth="100%"
-      #XXXXXX     background color  - don't think this is used
       rowbgcolor="#XXXXXX" set row background color (only valid in first cell)
       tablebgcolor="#XXXXXX" set table background color
     """
@@ -1907,7 +1916,8 @@ class CellMoinFormatItem(List):
          attr("top", "^"),
          attr("bottom", "v"),
          ("style=", attr("cellStyle", QuotedString)),
-         ("bgcolor=", attr("bgcolor", QuotedString)), 
+         ("bgcolor=", attr("bgcolor", QuotedString)),
+         ("#", attr("bgcolor", PlainText)), 
          [
              (optional("width="), attr("width", QuotedString)),
              (attr("unquotedWidth", re.compile(r"\d+(%|em|ex|px|cm|mm|in|pt|pc)")))]
@@ -1919,27 +1929,27 @@ class CellMoinFormatItem(List):
         TODO
         """
         if hasattr(self, "colspan"):
-            return("COLSPAN=" + self.colspan)
+            return("PLACEHOLDER_COLSPAN=" + self.colspan)
         elif hasattr(self, "rowspan"):
-            return("ROWSPAN=" + self.rowspan)
+            return("PLACEHOLDER_ROWSPAN=" + self.rowspan)
         elif hasattr(self, "left"):
-            return("LEFT")
+            return("PLACEHOLDER_LEFT")
         elif hasattr(self, "right"):
-            return("RIGHT")
+            return("PLACEHOLDER_RIGHT")
         elif hasattr(self, "center"):
-            return("CENTER")
+            return("PLACEHOLDER_CENTER")
         elif hasattr(self, "top"):
-            return("TOP")
+            return("PLACEHOLDER_TOP")
         elif hasattr(self, "bottom"):
-            return("BOTTOM")
+            return("PLACEHOLDER_BOTTOM")
         elif hasattr(self, "cellStyle"):
-            return("STYLE=" + compose(self.cellStyle))
+            return("PLACEHOLDER_STYLE=" + compose(self.cellStyle))
         elif hasattr(self, "bgcolor"):
-            return("BGCOLOR=" + compose(self.bgcolor))
+            return("PLACEHOLDER_BGCOLOR=" + compose(self.bgcolor))
         elif hasattr(self, "width"):
-            return("WIDTH=" + compose(self.width))
+            return("PLACEHOLDER_WIDTH=" + compose(self.width))
         elif hasattr(self, "unquotedWidth"):
-            return("WIDTH=" + self.unquotedWidth)
+            return("PLACEHOLDER_WIDTH=" + self.unquotedWidth)
         return("UNRECOGNOZED CELL FORMAT ITEM")
 
     def composeHtml(self):
@@ -1967,9 +1977,16 @@ class CellMoinFormatItem(List):
         elif hasattr(self, "bottom"):
             return("vertical-align: bottom;", True)
         elif hasattr(self, "cellStyle"):
-            return(self.cellStyle.justTheString(), True)
+            # add semicolon at end, if it does not have it.
+            styleString = self.cellStyle.justTheString()
+            if styleString[-1] != ";":
+                styleString += ";"
+            return(styleString, True)
         elif hasattr(self, "bgcolor"):
-            return("background-color: " + self.bgcolor.justTheString() + ";",
+            theColor = self.bgcolor.justTheString()
+            if re.match(r"[0-9A-Fa-f]{3,6}", theColor):
+                theColor = "#" + theColor
+            return("background-color: " + theColor + ";",
                    True)
         elif hasattr(self, "width"):
             return("width: " + self.width.justTheString() + ";", True)
@@ -2803,11 +2820,22 @@ def translate(srcFilePath, destFilePath):
     # Replace leading spaces on lines  with @INDENT-n@ where n is the
     # number of spaces. PyPeg often strips them, causing havoc with lists.  
     moinText = identifyIndents(moinText)
-    
-    parsedMoin = parse(moinText, Document)
 
+    # Each page can have leading YAML.  There's probably a way to deal with this
+    # gracefully in PyPeg, but I'll just hack it with a Global.
+    global pageYaml
+    pageYaml = {}    
+        
+    parsedMoin = parse(moinText, Document)
     markdownText = compose(parsedMoin)
     markdownFile = open(destFilePath, "w")
+
+    if len(pageYaml) > 0:
+        markdownFile.write("----\n")
+        for name, value in pageYaml.items():
+            markdownFile.write(name +": " + value + "\n")
+        markdownFile.write("----\n")
+            
     markdownFile.write(markdownText)
     markdownFile.close()
 
@@ -2827,7 +2855,6 @@ if __name__ == "__main__":
             print("DEBUG: DOCUMENT in PARSED FORM:")
             printList(parsedMoin, 2)
             print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====")
-
 
 
     

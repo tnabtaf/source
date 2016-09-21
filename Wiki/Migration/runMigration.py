@@ -35,11 +35,18 @@ class Argghhs(object):
 
 
 def traverse(srcdir, destdir, indent):
+    """
+    Implement each individual Moin page as it's own directory, with the text of the page in
+    index.md in that directory.
+    """
     global notImplementedPages, args
     
     for root, dirs, files in os.walk(srcdir):
         for file in files:
-            destfile = destdir + '/' + file[:-4] + 'md'
+            fileDestDir = destdir + '/' + file[:-5]
+            if not os.path.exists(fileDestDir):
+                os.mkdir(fileDestDir)
+            destfile = fileDestDir + '/index.md'
             srcfile = srcdir + '/' + file
             if (not args.args.onlynew) or (not os.path.exists(destfile)):
                 print ('.' * indent, 'FILE:', file)
