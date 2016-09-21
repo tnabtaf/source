@@ -654,7 +654,7 @@ class InternalPagePath(List):
                 out += self.pagePart          # keep leading ../
             elif self.isRootRelativeLink():
                 out += "/" + self.pagePart
-            out += ".md"             # Required when viewing it inside GitHub
+            # out += ".md"             # Required when viewing it inside GitHub
 
         # Now the anchors; GitHub and Moin handle anchor links differently
         # See https://gist.github.com/asabaylus/3071099

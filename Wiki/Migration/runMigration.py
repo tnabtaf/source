@@ -44,8 +44,10 @@ def traverse(srcdir, destdir, indent):
     for root, dirs, files in os.walk(srcdir):
         for file in files:
             fileDestDir = destdir + '/' + file[:-5]
+            fileDestDirNew = False
             if not os.path.exists(fileDestDir):
                 os.mkdir(fileDestDir)
+                fileDestDirNew = True
             destfile = fileDestDir + '/index.md'
             srcfile = srcdir + '/' + file
             if (not args.args.onlynew) or (not os.path.exists(destfile)):
@@ -54,6 +56,8 @@ def traverse(srcdir, destdir, indent):
                     parseMoinToMarkdown.translate(srcfile, destfile)
                 except NotImplementedError as e:
                     notImplementedPages.append([srcfile, e.args[0]])
+                    if fileDestDirNew: # clean up
+                        os.rmdir(fileDestDir)
 
         for dir in dirs:
             print ('.' * indent, 'DIR: ', dir)
