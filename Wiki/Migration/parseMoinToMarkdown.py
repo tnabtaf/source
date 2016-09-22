@@ -8,9 +8,6 @@ from pypeg2 import *                           # parser library.
 import re
 import os
 
-# What are the different types of things we hit in MoinMarkup?
-
-
 
 
 # ################
@@ -32,8 +29,8 @@ class Punctuation(List):
     Prevent matching with table cell ending.
     """
     grammar = contiguous(
-        attr("punctuation", re.compile(r"([^\w\s\|])|(\|(?=[^\|]|$))")))
-    
+        # attr("punctuation", re.compile(r"([^\w\s\|])|(\|(?=[^\|]|$))")))
+        attr("punctuation", re.compile(r"([^\w\s\|\<])|(\|(?=[^\|]|$))|(\<(?=[^\<]|$))")))
 
     def compose(self, parser, attr_of):
         """
@@ -823,39 +820,13 @@ class IncludeMacro(List):
         parse(r'Include(/Includes, , from="= LAPTOP =", to="END_INCLUDE")', cls)
         parse('Include(/Includes, , from="= LAPTOP =\\n", to="\\nEND_INCLUDE")', cls)
 
-class TitleDiv(List):
-    """
-    Title Div may get special handling because it might affect the YAML.
-    """
-    grammar = contiguous("title")
 
-    def compose(self, parser, attr_of):
-        return("""<div class="title">""")
-
-
-        
-class SpecialDiv(List):
-    """
-    Anything parsed by this requires something other than just generating a
-    div tag.
-    """
-    grammar = contiguous(TitleDiv)
-
-
-class OtherDiv(List):
-    """
-    Handles div classes that only need a div tag generated.
-    """
-    grammar = contiguous(
-        attr("divClass", re.compile(r"\w+")))
-        
-    def compose(self, parser, attr_of):
-        return("<div class='" + self.divClass + "'>")
 
         
 class DivMacro(List):
     """
-    Div Macros can define one or more local styles, or close a div
+    This handles Div macros that don't generate any YAML.  And div macros that do generate
+    YAML will have been handled before calling this class.
       <<div(solid blue)>>
       <<div(center)>>
       <<div>> (closing)
@@ -863,21 +834,12 @@ class DivMacro(List):
     CSS that we control?
     """
     grammar = contiguous(
-        "div",
-        optional("(", [SpecialDiv, OtherDiv],
-            maybe_some(omit(whitespace), [SpecialDiv, OtherDiv]),
-            ")"))
+        "div(",
+        attr("divClass", re.compile(r"[\w\- ]+")),
+        ")")
 
     def compose(self, parser, attr_of):
-        """
-        Override compose method to generate Markdown.
-        """
-        out = ""
-        for divClass in self:
-            out += compose(divClass)
-        if len(self) == 0:
-            out = "</div>"
-        return(out)
+        return("<div class='" + self.divClass + "'>")
 
     @classmethod
     def test(cls):
@@ -885,10 +847,67 @@ class DivMacro(List):
         Test different instances of what this should and should not recognize
         """
         parse("div(center)", cls)
-        parse("div", cls)
+        testFail("div", cls)
         parse("div(indent)", cls)
+        parse("div(table-of-contents)", cls)
 
 
+
+class DivEndMacro(List):
+    """
+    Div macros end with just <<div>>
+    """
+    grammar = "div"
+
+    def compose(self, parser, attr_of):
+        return("</div>")
+
+
+    @classmethod
+    def test(cls):
+        parse("div", cls)
+
+
+class SpanMacro(List):
+    """
+    This handles span macros
+      <<span(blue)>>
+    """
+    grammar = contiguous(
+        "span(",
+        attr("spanClass", re.compile(r"[\w ]+")),
+        ")")
+
+    def compose(self, parser, attr_of):
+        return("<div class='" + self.spanClass + "'>")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("span(blue)", cls)
+        testFail("span", cls)
+
+
+
+class SpanEndMacro(List):
+    """
+    Span macros end with just <<span>>
+    """
+    grammar = "span"
+
+    def compose(self, parser, attr_of):
+        return("</span>")
+
+
+    @classmethod
+    def test(cls):
+        parse("span", cls)
+
+
+        
+        
 class TOCMacro(List):
     """
     TableOfContents Macros insert TOC's.  There ya go.
@@ -1000,9 +1019,305 @@ class MailToMacro(List):
         parse("MailTo(bioinformatics.core@ucdavis.edu, UC Davis Bioinformatics)", cls)
         parse("MailTo(bioinformatics.core AT ucdavis.edu, UC Davis Bioinformatics)", cls)
         parse('MailTo( w4mcourse2015.organisation@sb-roscoff.fr, W4M Course Organisers)', cls)
+        parse("MailTo(mimodd@googlegroups.com, MiModD Google Group)", cls)
+        
+class FullSearchCachedMacro(List):
+    """
+    Macro that generates a list of pages 
+      <<FullSearchCached(stringtosearchfor)>>
+    """
+    grammar = contiguous(
+        "FullSearchCached(",
+        attr("searchString", re.compile(r".+(?=\))")),
+        ")")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("PLACEHOLDER_FULL_SEARCH_CACHE(" + self.searchString + ")")
+
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("FullSearchCached(stringtosearchfor)", cls)
+
+        
+
+class NewPageMacro(List):
+    """
+    Macro that generates a list of pages 
+      <<NewPage()>>
+      <<NewPage(NewsTemplate, "Create a News Item page", News)>>
+    """
+    grammar = contiguous(
+        "NewPage(",
+        optional(
+            attr("theRest", re.compile(r".+(?=\))"))),
+        ")")
+                         
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "PLACEHOLDER_NEW_PAGE("
+        if hasattr(self, "theRest"):
+            out += self.theRest
+        out += ")"
+        return(out)
+        
+                
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("NewPage()", cls)
+        parse('NewPage(NewsTemplate, "Create a News Item page", News)', cls)
 
 
 
+class RSSReaderMacro(List):
+    """
+    Macro that generates a list of pages 
+      <<RSSReader("http://feed43.com/galaxynotesheadlines.xml", includeStyle=False)>>
+    """
+    grammar = contiguous(
+        "RSSReader(",
+        attr("theRest", re.compile(r".+(?=\))")),
+        ")")
+                         
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "PLACEHOLDER_RSSREADER("
+        if hasattr(self, "theRest"):
+            out += self.theRest
+        out += ")"
+        return(out)
+        
+                
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('RSSReader("http://feed43.com/galaxynotesheadlines.xml", includeStyle=False)', cls)
+
+        
+
+        
+class ActionMacro(List):
+    """
+    Action Macros look like
+      <<Action(AttachFile, Attach a file to this page.)>>
+    """
+    grammar = contiguous(
+        "Action(",
+        maybe_some(whitespace),
+        attr("actionType", re.compile(r".+(?=,)")),
+        maybe_some(whitespace),
+        ",",
+        maybe_some(whitespace),
+        attr("actionText", re.compile(r".+(?=\))")),
+        ")")
+            
+
+    def compose(self, parser, attr_of):
+        """
+        Can be generated as a link in Markdown
+        """
+        out = "PLACEHOLDER_ACTION(" + self.actionType + "," + self.actionText + ")"
+        return(out)
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("Action(AttachFile, Attach a file to this page.)", cls)
+
+
+class AttachListMacro(List):
+    """
+    Macro that generates a list of pages 
+      <<AttachList>>
+    """
+    grammar = contiguous("AttachList")
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        return("PLACEHOLDER_ATTACH_LIST")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("AttachList", cls)
+
+class ShowTweetsMacro(List):
+    """
+    ShowTweets Macros look like
+      <<ShowTweets(user="galaxyproject", maxTweets=20)>>
+      
+    """
+    grammar = contiguous(
+        "ShowTweets(",
+        maybe_some(whitespace),
+        attr("username", re.compile(r".+(?=,)")),
+        maybe_some(whitespace),
+        ",",
+        maybe_some(whitespace),
+        attr("maxTweets", re.compile(r".+(?=\))")),
+        ")")
+            
+
+    def compose(self, parser, attr_of):
+        """
+        Can be generated as a link in Markdown
+        """
+        out = "PLACEHOLDER_SHOW_TWEETS(" + self.username + "," + self.maxTweets + ")"
+        return(out)
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('ShowTweets(user="galaxyproject", maxTweets=20)', cls)
+
+
+class DictColumnsMacro(List):
+    """
+    DictColumns Macros look like
+      <<DictColumns(pagename=VA, names="Appliance, Technology, Domains, Description, Owners, Date Created/Updated", sort="Date Created/Updated", title="Hide", hide="Hide")>>
+      
+    """
+    grammar = contiguous(
+        "DictColumns(",
+        attr("theRest", re.compile(r".+(?=\))")),
+        ")")
+                         
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "PLACEHOLDER_DICT_COLUMNS("
+        if hasattr(self, "theRest"):
+            out += self.theRest
+        out += ")"
+        return(out)
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('DictColumns(pagename=VA, names="Appliance, Technology, Domains, Description, Owners, Date Created/Updated", sort="Date Created/Updated", title="Hide", hide="Hide")', cls)
+
+
+class DateTimeMacro(List):
+    """
+    DateTime Macros look like
+      <<DateTime(2011-08-30T22:27:39Z)>>
+      
+    """
+    grammar = contiguous(
+        "DateTime(",
+        attr("theRest", re.compile(r".+(?=\))")),
+        ")")
+                         
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "PLACEHOLDER_DATE_TIME("
+        if hasattr(self, "theRest"):
+            out += self.theRest
+        out += ")"
+        return(out)
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('DateTime(2011-08-30T22:27:39Z)")', cls)
+
+
+
+class DateMacro(List):
+    """
+    Date Macros look like
+      <<Date(2012-01-27T01:02:28Z)>>
+      
+    """
+    grammar = contiguous(
+        "Date(",
+        attr("theRest", re.compile(r".+(?=\))")),
+        ")")
+                         
+
+    def compose(self, parser, attr_of):
+        """
+        Override compose method to generate Markdown.
+        """
+        out = "PLACEHOLDER_DATE("
+        if hasattr(self, "theRest"):
+            out += self.theRest
+        out += ")"
+        return(out)
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('Date(2012-01-27T01:02:28Z)', cls)
+                
+
+class AnchorMacro(List):
+    """
+    ShowTweets Macros look like
+      <<Achor(anchor text)>>
+      
+    """
+    grammar = contiguous(
+        "Anchor(",
+        maybe_some(whitespace),
+        attr("anchorTarget", re.compile(r".+(?=\))")),
+        ")")
+            
+
+    def compose(self, parser, attr_of):
+        """
+        Can be generated as a link in Markdown
+        """
+        out = "PLACEHOLDER_ANCHOR(" + self.anchorTarget + ")"
+        return(out)
+
+        
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse('Anchor(Stampede)', cls)
+        
+        
 class Macro(List):
     """
     MoinMoin can have macros link include, or div or TableOfContents.  Sometimes they
@@ -1017,7 +1332,10 @@ class Macro(List):
     grammar = contiguous(
         "<<",
         attr("macro",
-            [TOCMacro, IncludeMacro, DivMacro, BRMacro, MailToMacro]),
+            [TOCMacro, IncludeMacro, DivMacro, DivEndMacro,
+             SpanMacro, SpanEndMacro, BRMacro, MailToMacro, DictColumnsMacro,
+             FullSearchCachedMacro, NewPageMacro, ActionMacro, AttachListMacro,
+             ShowTweetsMacro, AnchorMacro, RSSReaderMacro, DateTimeMacro, DateMacro]),
         ">>")
 
 
@@ -1039,16 +1357,29 @@ class Macro(List):
     def test(cls):
         MailToMacro.test()
         DivMacro.test()
+        DivEndMacro.test()
+        SpanMacro.test()
+        SpanEndMacro.test()
         IncludeMacro.test()
         TOCMacro.test()
         BRMacro.test()
+        DictColumnsMacro.test()
+        FullSearchCachedMacro.test()
+        NewPageMacro.test()
+        ActionMacro.test()
+        AttachListMacro.test()
+        ShowTweetsMacro.test()
+        AnchorMacro.test()
+        RSSReaderMacro.test()
+        DateTimeMacro.test()
+        DateMacro.test()
         parse("<<div>>", cls)
         parse("<<div(center)>>", cls)
         parse("<<div(indent)>>", cls)
         parse("<<Include(FrontPage/Use Galaxy)>>", cls)
         parse("<<Include(Develop/LinkBox)>>", cls)
         parse(r'<<Include(/Includes, , from="= LA T =\n", to="\nEN_CL")>>', cls)
-
+        
 
 
     
@@ -1174,7 +1505,6 @@ class ExternalLink(List):
         parse("[[http://link.com|Linkin somewhere]]", cls)
         parse("[[ftp://this.here.com/path/file.txt|Text for link.]]", cls)
         parse("[[https://link.com/| Whitespace test ]]", cls)
-
 
 
 class InternalLink(List):
@@ -1706,6 +2036,7 @@ class Link(List):
         parse("[[http://www.citeulike.org/group/16008/order/to_read,desc,|Galaxy papers on CituLike]]", cls)
         parse("[[http://bioblend.readthedocs.org/en/latest/|bioblend]]", cls)
 
+
 # =============
 # Subelements
 # =============
@@ -1765,7 +2096,19 @@ class Subelement(List):
         InlineComment.test()
         Punctuation.test()
 
+class SubelementSansMacro(Subelement):
 
+    grammar = contiguous(
+        [LeadingSpaces, Link, Image, SuperScriptText, StrikeThroughText,
+         Underline, Bold, Italic, Monospace,
+         CodeBlockStart, CodeBlockEnd,
+         FontSizeChangeStart, FontSizeChangeEnd,
+         InlineComment, PlainText, Punctuation])
+
+
+
+
+    
 # ===========
 # Lists
 # ===========
@@ -2441,6 +2784,57 @@ class Paragraph(List):
         """, cls)
 
 
+# ================
+# YAML Macros
+# ===============
+
+class TitleDiv(List):
+    """
+    Title Div may get special handling because it might affect the YAML.
+    """
+    grammar = contiguous(
+        "<<div(",
+        maybe_some(whitespace),
+        "title",
+        maybe_some(whitespace),
+        ")>>",
+        attr("title", some(SubelementSansMacro)),
+        maybe_some(whitespace),
+        "<<div>>")
+
+    def compose(self, parser, attr_of):
+        global pageYaml
+
+        # Everything generated is placed in YAML
+        
+        pageYaml["pagetitle"] = compose(self.title)
+
+        return("")
+
+    @classmethod
+    def test(cls):
+        """
+        Test different instances of what this should and should not recognize
+        """
+        parse("<<div(title)>> A Wonderful Title<<div>>", cls)
+        parse("<<div(title)>> A Wonderful Title.<<div>>", cls)
+        parse("<<div(title)>>[[http://www.researchgate.net/profile/Carrie_Ganote|Carrie Ganote]]<<div>>", cls)
+    
+
+
+class YamlMacro(List):
+    """
+    Anything parsed by this requires something other than just generating a
+    markdown
+    """
+    grammar = contiguous(TitleDiv)
+
+
+
+    @classmethod
+    def test(cls):
+        TitleDiv.test()
+    
 
 # ================
 # Elements
@@ -2454,7 +2848,7 @@ class Element(List):
     Elements don't have to be at the top level, but they can be.
     """
     grammar = contiguous(
-        [SectionHeader, MoinList, Table, Macro,
+        [SectionHeader, YamlMacro, MoinList, Table, Macro,
          CodeBlockStart, CodeBlockEnd, FontSizeChangeStart, FontSizeChangeEnd,
          Comment, Paragraph, TrailingWhitespace])
 
@@ -2472,6 +2866,7 @@ class Element(List):
         """
         Table.test()
         SectionHeader.test()
+        YamlMacro.test()
         MoinList.test()
         Macro.test()
         CodeBlockStart.test()
@@ -2726,6 +3121,9 @@ def printList(list, indent=0):
 
 def runTests():
     global args
+    global pageYaml
+    
+    pageYaml = {}
 
     CellMoinFormatItem.test()
     CellClass.test()
@@ -2824,7 +3222,7 @@ def translate(srcFilePath, destFilePath):
     # Each page can have leading YAML.  There's probably a way to deal with this
     # gracefully in PyPeg, but I'll just hack it with a Global.
     global pageYaml
-    pageYaml = {}    
+    pageYaml = {}
         
     parsedMoin = parse(moinText, Document)
     markdownText = compose(parsedMoin)
@@ -2856,15 +3254,6 @@ if __name__ == "__main__":
             printList(parsedMoin, 2)
             print("====\n====\nEND DOCUMENT in PARSED FORM\n====\n====")
 
-
-    
-class Dictionary(List):
-    """
-    Moin dictionaries generate HTML description lists, and we use them extensively
-    with Macros that include parts of other pages.
-
-    TODO: Figure out if stuff in dictionaries should go in YAML.
-    """
 
 class WikiWordLinks(List):
     """
