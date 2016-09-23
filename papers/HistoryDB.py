@@ -7,12 +7,13 @@ import csv
 
 import Matchup
 
-NEW     = "new"
-TITLE   = "title"
-AUTHORS = "authors"
-DOI     = "doi"
+NEW      = "new"
+TITLE    = "title"
+AUTHORS  = "authors"
+DOI      = "doi"
+COMMENTS = "comments"
 
-COLUMNS = [NEW, TITLE, AUTHORS, DOI]
+COLUMNS = [NEW, TITLE, AUTHORS, DOI, COMMENTS]
 
 
 class HistoryDB(object):
@@ -32,16 +33,33 @@ class HistoryDB(object):
         return None
 
     def getByTitleLower(self, lowerTitle):
+        """
+        Returns None if we don't know about this title.
+        """
         return(self.byTitleLower.get(lowerTitle))
 
         
     def getByDoi(self, doi):
+        """
+        Returns None if we don't know about this DOI.
+        """
         return(self.byDoi.get(doi))
 
-        
+    def getEntryGivenMatchup(self, matchup):
+        """
+        Use information in a matchup to locate that paper's comments in the
+        history DB.  Can use DOI or lower title
+        """
+        entry = None
+        doi = matchup.getDoiFromPapers()
+        if doi:
+            entry = self.getByDoi(doi)
+        else:
+            entry = self.getByTitleLower(matchup.lowerTitle)
+        return(entry)
 
 
-def writeHistory(matchups, sortedTitles, csvOutFileName):
+def writeHistory(matchups, sortedTitles, csvOutFileName, priorHistoryDb):
     
     csvOut = open(csvOutFileName, "w")
     csvWriter = csv.DictWriter(csvOut, fieldnames=COLUMNS, dialect="excel-tab")
@@ -59,7 +77,9 @@ def writeHistory(matchups, sortedTitles, csvOutFileName):
         row[TITLE]   = matchup.papers[0].title
         row[AUTHORS] = matchup.papers[0].authors
         row[DOI]     = Matchup.getDoiFromPaperList(matchup.papers)
-
+        priorHistoryEntry = priorHistoryDb.getEntryGivenMatchup(matchup)
+        if priorHistoryEntry:
+            row[COMMENTS] = priorHistoryEntry[COMMENTS]
         csvWriter.writerow(row)
 
     return None

@@ -39,6 +39,16 @@ class Matchup(object):
         return(None)
 
 
+    def getDoiFromPapers(self):
+        """
+        List is assumed to have been pre-verified to have consistent DOIs
+        """
+        for paper in self.papers:
+            if paper.doi:
+                return(paper.doi)
+        return(None)
+
+        
 
 def getDoiFromPaperList(paperList):
     """
@@ -201,11 +211,13 @@ def reportPaper(matchup, history):
         fontColor = "#000"
 
         # if we saw this paper in the previous run, then it is newish.
-        if history and (history.getByTitleLower(matchup.lowerTitle) or
-            history.getByDoi(getDoiFromPaperList(matchup.papers))):
-            leader = "Newish"
-        else:
-            leader = "New"
+        leader = "New"
+        if history:
+            historyEntry = history.getByTitleLower(matchup.lowerTitle)
+            if not historyEntry:
+                historyEntry = history.getByDoi(getDoiFromPaperList(matchup.papers))
+            if historyEntry:
+                leader = "Newish [" + historyEntry[HistoryDB.COMMENTS] + "] "
         leader += " (#" + str(reportPaper.newCounter) + "):" 
         hLevel = "h2"
     else:

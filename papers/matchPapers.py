@@ -310,7 +310,7 @@ for title in sortedTitles:
         print("Reason:", err.reason)
         
 if args.args.historyout:
-    HistoryDB.writeHistory(byLowerTitle, sortedTitles, args.args.historyout)
+    HistoryDB.writeHistory(byLowerTitle, sortedTitles, args.args.historyout, history)
             
 
     
